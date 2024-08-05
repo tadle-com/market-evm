@@ -1,6 +1,8 @@
 # Compiler files
 cache/
 out/
+artifacts/
+cache_hardhat/
 
 # Ignores development broadcast logs
 !/broadcast
@@ -14,10 +16,18 @@ docs/
 .env
 
 .history/
-
 lib/
-node_modules
-*.lock
+node_modules/
 
-artifacts/
-cache_hardhat/
+*.lock
+pnpm-lock.yaml
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*

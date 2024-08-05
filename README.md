@@ -18,7 +18,7 @@
 ## About the Project
 
 ```
-Tadle is a cutting-edge pre-market infrastructure designed to unlock illiquid assets in the crypto pre-market. 
+Tadle is a cutting-edge pre-market infrastructure designed to unlock illiquid assets in the crypto pre-market.
 
 Our first product, the Points Marketplace, empowers projects to unlock the liquidity and value of points systems before conducting the Token Generation Event (TGE). By facilitating seamless trading and providing a secure, trustless environment, Tadle ensures that your community can engage with your tokens and points dynamically and efficiently.
 
@@ -45,7 +45,7 @@ Sell Offer Maker
 - Deliver tokens during settlement
 
 General User
-- Fetch balances info 
+- Fetch balances info
 - Withdraw funds from your balances
 
 Admin (Trust)
@@ -110,13 +110,15 @@ Compatibilities:
 
 ## Setup
 
+Prerequisites:
+
+```bash
+forge install OpenZeppelin/openzeppelin-contracts
+```
+
 Build:
 
 ```bash
-forge init
-
-forge install OpenZeppelin/openzeppelin-contracts
-
 forge build
 ```
 
