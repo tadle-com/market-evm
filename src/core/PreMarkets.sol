@@ -4,7 +4,8 @@ pragma solidity ^0.8.13;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {PerMarketsStorage} from "../storage/PerMarketsStorage.sol";
-import {OfferStatus, StockStatus, AbortOfferStatus, OfferType, StockType, OfferSettleType} from "../storage/OfferStatus.sol";
+import {OfferStatus, AbortOfferStatus, OfferType, OfferSettleType} from "../storage/OfferStatus.sol";
+import {StockStatus, StockType} from "../storage/OfferStatus.sol";
 import {ITadleFactory} from "../factory/ITadleFactory.sol";
 import {ITokenManager, TokenBalanceType} from "../interfaces/ITokenManager.sol";
 import {ISystemConfig, MarketPlaceInfo, MarketPlaceStatus, ReferralInfo} from "../interfaces/ISystemConfig.sol";
@@ -22,7 +23,7 @@ import {Errors} from "../utils/Errors.sol";
 /**
  * @title PreMarkets
  * @notice Implement the pre market
-*/
+ */
 contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
     using Math for uint256;
     using RelatedContractLibraries for ITadleFactory;
@@ -305,7 +306,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         }
 
         StockInfo storage stockInfo = stockInfoMap[_stock];
-        if (_msgSender() == stockInfo.authority) {
+        if (_msgSender() != stockInfo.authority) {
             revert Errors.Unauthorized();
         }
 

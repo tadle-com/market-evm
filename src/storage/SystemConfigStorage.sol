@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {UpgradeableStorage} from "./UpgradeableStorage.sol";
 import {ReferralInfo, MarketPlaceInfo} from "../interfaces/ISystemConfig.sol";
 
-
 /**
  * @title SystemConfigStorage
  * @dev Storage of SystemConfig

@@ -75,11 +75,21 @@ interface ISystemConfig {
         uint256 authorityRate
     );
 
+    /// @dev Emit events when update referrer extra rate
+    event UpdateReferralExtraRateMap(
+        address indexed referrerAddress,
+        uint256 referrerRate
+    );
+
     /// Error when the referrer and the referee cannot be the same person
     error InvalidReferrer(address referrer);
 
     /// Error when invalid referrer rate or authority rate
-    error InvalidRate(uint256 referrerRate, uint256 authorityRate, uint256 totalRate);
+    error InvalidRate(
+        uint256 referrerRate,
+        uint256 authorityRate,
+        uint256 totalRate
+    );
 
     /// Error when referrer rate must be greater than the base number
     error InvalidReferrerRate(uint256 referrerRate);

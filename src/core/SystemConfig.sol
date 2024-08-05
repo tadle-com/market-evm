@@ -189,6 +189,25 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
         emit UpdateUserPlatformFeeRate(_accountAddress, _platformFeeRate);
     }
 
+    /**
+     * @notice Update referrer extra rate
+     * @param _referrer Referrer address
+     * @param _extraRate Extra rate
+     * @notice Caller must be owner
+     * @notice _extraRate + baseReferralRate <= REFERRAL_RATE_DECIMAL_SCALER
+     */
+    function updateReferralExtraRateMap(
+        address _referrer,
+        uint256 _extraRate
+    ) external onlyOwner {
+        uint256 totalRate = _extraRate + baseReferralRate;
+        if (totalRate > Constants.REFERRAL_RATE_DECIMAL_SCALER) {
+            revert InvalidTotalRate(totalRate);
+        }
+        referralExtraRateMap[_referrer] = _extraRate;
+        emit UpdateReferralExtraRateMap(_referrer, _extraRate);
+    }
+
     /// @dev Get base platform fee rate.
     function getBaseReferralRate() external view returns (uint256) {
         return baseReferralRate;

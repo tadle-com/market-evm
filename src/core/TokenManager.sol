@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TokenManagerStorage} from "../storage/TokenManagerStorage.sol";
 import {ITadleFactory} from "../factory/ITadleFactory.sol";
 import {ITokenManager, TokenBalanceType} from "../interfaces/ITokenManager.sol";
+import {ICapitalPool} from "../interfaces/ICapitalPool.sol";
 import {IWrappedNativeToken} from "../interfaces/IWrappedNativeToken.sol";
 import {RelatedContractLibraries} from "../libraries/RelatedContractLibraries.sol";
 import {Rescuable} from "../utils/Rescuable.sol";
@@ -18,7 +19,12 @@ import {Errors} from "../utils/Errors.sol";
  * @notice Only support ERC20 or native token
  * @notice Only support white listed token
  */
-contract TokenManager is TokenManagerStorage, Rescuable, Related, ITokenManager {
+contract TokenManager is
+    TokenManagerStorage,
+    Rescuable,
+    Related,
+    ITokenManager
+{
     constructor() Rescuable() {}
 
     modifier onlyInTokenWhiteList(bool _isPointToken, address _tokenAddress) {
@@ -84,7 +90,13 @@ contract TokenManager is TokenManagerStorage, Rescuable, Related, ITokenManager 
             _safe_transfer(wrappedNativeToken, capitalPoolAddr, _amount);
         } else {
             /// @notice token is ERC20 token
-            _transfer(_tokenAddress, _accountAddress, capitalPoolAddr, _amount);
+            _transfer(
+                _tokenAddress,
+                _accountAddress,
+                capitalPoolAddr,
+                _amount,
+                capitalPoolAddr
+            );
         }
 
         emit TillIn(_accountAddress, _tokenAddress, _amount, _isPointToken);
@@ -149,7 +161,8 @@ contract TokenManager is TokenManagerStorage, Rescuable, Related, ITokenManager 
                 wrappedNativeToken,
                 capitalPoolAddr,
                 address(this),
-                claimAbleAmount
+                claimAbleAmount,
+                capitalPoolAddr
             );
 
             IWrappedNativeToken(wrappedNativeToken).withdraw(claimAbleAmount);
@@ -159,7 +172,12 @@ contract TokenManager is TokenManagerStorage, Rescuable, Related, ITokenManager 
              * @dev token is ERC20 token
              * @dev transfer from capital pool to msg sender
              */
-            _safe_transfer(_tokenAddress, _msgSender(), claimAbleAmount);
+            _safe_transfer_from(
+                _tokenAddress,
+                capitalPoolAddr,
+                _msgSender(),
+                claimAbleAmount
+            );
         }
 
         emit Withdraw(
@@ -216,12 +234,20 @@ contract TokenManager is TokenManagerStorage, Rescuable, Related, ITokenManager 
         address _token,
         address _from,
         address _to,
-        uint256 _amount
+        uint256 _amount,
+        address _capitalPoolAddr
     ) internal {
         uint256 fromBalanceBef = IERC20(_token).balanceOf(_from);
         uint256 toBalanceBef = IERC20(_token).balanceOf(_to);
 
-        _safe_transfer(_token, _to, _amount);
+        if (
+            _from == _capitalPoolAddr &&
+            IERC20(_token).allowance(_from, address(this)) == 0x0
+        ) {
+            ICapitalPool(_capitalPoolAddr).approve(address(this));
+        }
+
+        _safe_transfer_from(_token, _from, _to, _amount);
 
         uint256 fromBalanceAft = IERC20(_token).balanceOf(_from);
         uint256 toBalanceAft = IERC20(_token).balanceOf(_to);

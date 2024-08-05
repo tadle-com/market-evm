@@ -16,3 +16,8 @@ docs/
 .history/
 
 lib/
+node_modules
+*.lock
+
+artifacts/
+cache_hardhat/

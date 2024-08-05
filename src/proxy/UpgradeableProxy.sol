@@ -12,10 +12,10 @@ import {Errors} from "../utils/Errors.sol";
 /**
  * @title UpgradeableProxy
  * @notice This contrct is based on TransparentUpgradeableProxy.
- * @dev This contrct serves as the proxy of SystemConfig, PreMarkets, DeliveryPlace, CapitalPool and TradingHall.
+ * @dev This contrct serves as the proxy of SystemConfig, PreMarkets, DeliveryPlace, CapitalPool and TokenManager.
  * @notice the first storage slot is used as admin.
  * @notice the second storage slot is used as tadle factory.
- * @notice Total Storage Gaps: 50, UnUsed Storage Slots: 48.
+ * @notice Total Storage Gaps: 50, UnUsed Storage Slots: 49.
  */
 contract UpgradeableProxy is TransparentUpgradeableProxy {
     ITadleFactory public tadleFactory;
@@ -41,5 +41,5 @@ contract UpgradeableProxy is TransparentUpgradeableProxy {
      * variables without shifting down storage in the inheritance chain.
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
-    uint256[48] private __gap;
+    uint256[49] private __gap;
 }

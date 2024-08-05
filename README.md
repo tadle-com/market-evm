@@ -123,7 +123,7 @@ forge build
 Tests:
 
 ```bash
-forge test
+forge test -vvv
 ```
 
 [//]: # 'getting-started-close'

@@ -20,9 +20,6 @@ contract TadleFactory is Context, ITadleFactory {
     /// @dev address of guardian, who can deploy some contracts
     address internal guardian;
 
-    /// @dev address of proxy admin
-    address public proxyAdmin;
-
     /**
      * @dev mapping of related contracts, deployed by factory
      *      1 => SystemConfig
@@ -56,10 +53,6 @@ contract TadleFactory is Context, ITadleFactory {
         address _logic,
         bytes memory _data
     ) external onlyGuardian returns (address) {
-        if (proxyAdmin == address(0x0)) {
-            revert UnDepoloyedProxyAdmin();
-        }
-
         /// @dev the logic address must be a contract
         if (!_logic.isContract()) {
             revert LogicAddrIsNotContract(_logic);
@@ -68,30 +61,12 @@ contract TadleFactory is Context, ITadleFactory {
         /// @dev deploy proxy
         UpgradeableProxy _proxy = new UpgradeableProxy(
             _logic,
-            proxyAdmin,
+            guardian,
             address(this),
             _data
         );
         relatedContracts[_relatedContractIndex] = address(_proxy);
         emit RelatedContractDeployed(_relatedContractIndex, address(_proxy));
         return address(_proxy);
-    }
-
-    /**
-     * @notice deploy proxy admin
-     * @dev guardian can deploy proxy admin
-     * @param _proxyAdminInitialOwner initial owner of proxy admin
-     */
-    function deployProxyAdmin(
-        address _proxyAdminInitialOwner
-    ) external onlyGuardian returns (address) {
-        /// @dev deploy proxy admin contract
-        /// @notice proxy admin contract is used in OZ upgrades plugin
-        /// @param _proxyAdminInitialOwner initial owner of proxy admin
-        ProxyAdmin _proxyAdmin = new ProxyAdmin(_proxyAdminInitialOwner);
-        proxyAdmin = address(_proxyAdmin);
-        emit ProxyAdminDeployed(proxyAdmin);
-
-        return proxyAdmin;
     }
 }

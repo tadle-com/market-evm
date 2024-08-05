@@ -12,6 +12,8 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 contract Rescuable is Ownable, Pausable {
     bytes4 private constant TRANSFER_SELECTOR =
         bytes4(keccak256(bytes("transfer(address,uint256)")));
+    bytes4 private constant TRANSFER_FROM_SELECTOR =
+        bytes4(keccak256(bytes("transferFrom(address,address,uint256)")));
 
     /// @dev Event emitted when the pause status is set
     event SetPauseStatus(bool status);
@@ -22,8 +24,19 @@ contract Rescuable is Ownable, Pausable {
     /// @dev Error message when the transfer fails
     error TransferFailed();
 
+    /// @dev Error message when the initialization fails
+    error AlreadyInitialized();
+
     /// @notice Initializes the smart contract with the new implementation.
     constructor() Ownable(_msgSender()) {}
+
+    function initializeOwnership(address _newOwner) external {
+        if (owner() != address(0x0)) {
+            revert AlreadyInitialized();
+        }
+
+        _transferOwnership(_newOwner);
+    }
 
     /**
      * @notice The caller must be the owner.
@@ -75,6 +88,27 @@ contract Rescuable is Ownable, Pausable {
     ) internal {
         (bool success, ) = token.call(
             abi.encodeWithSelector(TRANSFER_SELECTOR, to, amount)
+        );
+
+        if (!success) {
+            revert TransferFailed();
+        }
+    }
+
+    /**
+     * @dev Safe transfer.
+     * @param token The token to transfer. If 0, it is ether.
+     * @param to The address of the account to transfer to.
+     * @param amount The amount to transfer.
+     */
+    function _safe_transfer_from(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) internal {
+        (bool success, ) = token.call(
+            abi.encodeWithSelector(TRANSFER_FROM_SELECTOR, from, to, amount)
         );
 
         if (!success) {

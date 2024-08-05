@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.13;
 
-import {OfferStatus, OfferType, AbortOfferStatus, StockStatus, StockType, OfferSettleType} from "../storage/OfferStatus.sol";
+import {OfferStatus, AbortOfferStatus, OfferType, OfferSettleType} from "../storage/OfferStatus.sol";
+import {StockStatus, StockType} from "../storage/OfferStatus.sol";
 
 /**
  * @title IPerMarkets
@@ -222,7 +223,6 @@ struct MakerInfo {
 /**
  * @title OfferInfo
  * @dev Struct of OfferInfo
- * @notice id, maker, offerStatus, offerType, abortOfferStatus, points, amount, collateralRate, usedPoints, tradeTax, settledPoints, settledPointTokenAmount, settledCollateralAmount
  * @param id the unique id of offer.
  * @param authority the owner of offer.
  * @param maker the maker of offer, is a virtual address, storage as MakerInfo.
