@@ -31,16 +31,32 @@ Our first product, the Points Marketplace, empowers projects to unlock the liqui
 ## Actors
 
 ```
-- Create Buy Offer
-- Create Sell Offer
-- Place Taker Orders
-- Know Your Numbers on Dashboard
-- Relist Stocks as New Offers
-- Cancel Your Offer
-- Abort Your Offer
-- Deliver Tokens During Settlement
-- Fetch Balances Info 
-- Withdraw Fund from Your Balances
+Maker
+- Create buy offer
+- Create sell offer
+- Cancel your offer
+- Abort your offer
+
+Taker
+- Place taker orders
+- Relist stocks as new offers
+
+Sell Offer Maker
+- Deliver tokens during settlement
+
+General User
+- Fetch balances info 
+- Withdraw funds from your balances
+
+Admin (Trust)
+- Create a marketplace
+- Take a marketplace offline
+- Initialize system parameters, like WETH contract address, referral commission rate, etc.
+- Set up collateral token list, like ETH, USDC, LINK, ankrETH, etc.
+- Set `TGE` parameters for settlement, like token contract address, TGE time, etc.
+- Grant privileges for users’ commission rates
+- Pause all the markets
+
 ```
 
 [//]: # 'contest-details-close'
@@ -86,15 +102,13 @@ Compatibilities:
   Tokens:
       - ETH
       - WETH
-      - ERC20
+      - ERC20 (any token that follows the ERC20 standard)
 ```
 
 [//]: # 'scope-close'
 [//]: # 'getting-started-open'
 
 ## Setup
-
-Example:
 
 Build:
 
@@ -109,7 +123,7 @@ forge build
 Tests:
 
 ```bash
-Forge test
+forge test
 ```
 
 [//]: # 'getting-started-close'
