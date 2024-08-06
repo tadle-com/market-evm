@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {SystemConfig} from "../src/core/SystemConfig.sol";
@@ -15,6 +15,7 @@ import {TokenBalanceType, ITokenManager} from "../src/interfaces/ITokenManager.s
 
 import {GenerateAddress} from "../src/libraries/GenerateAddress.sol";
 
+import {Rescuable} from "../src/utils/Rescuable.sol";
 import {MockERC20Token} from "./mocks/MockERC20Token.sol";
 import {WETH9} from "./mocks/WETH9.sol";
 import {UpgradeableProxy} from "../src/proxy/UpgradeableProxy.sol";
@@ -36,6 +37,9 @@ contract PreMarketsTest is Test {
     address user2 = vm.addr(3);
     address user3 = vm.addr(4);
 
+    address manager = vm.addr(5);
+    address guardian = vm.addr(6);
+
     uint256 basePlatformFeeRate = 5_000;
     uint256 baseReferralRate = 300_000;
 
@@ -46,7 +50,7 @@ contract PreMarketsTest is Test {
         // deploy mocks
         weth9 = new WETH9();
 
-        TadleFactory tadleFactory = new TadleFactory(user1);
+        TadleFactory tadleFactory = new TadleFactory(guardian);
 
         mockUSDCToken = new MockERC20Token();
         mockPointToken = new MockERC20Token();
@@ -57,37 +61,32 @@ contract PreMarketsTest is Test {
         PreMarktes preMarktesLogic = new PreMarktes();
         DeliveryPlace deliveryPlaceLogic = new DeliveryPlace();
 
-        bytes memory deploy_data = abi.encodeWithSelector(
-            INITIALIZE_OWNERSHIP_SELECTOR,
-            user1
-        );
-        vm.startPrank(user1);
-
+        vm.startPrank(guardian);
         address systemConfigProxy = tadleFactory.deployUpgradeableProxy(
             1,
             address(systemConfigLogic),
-            bytes(deploy_data)
+            manager
         );
 
         address preMarktesProxy = tadleFactory.deployUpgradeableProxy(
             2,
             address(preMarktesLogic),
-            bytes(deploy_data)
+            manager
         );
         address deliveryPlaceProxy = tadleFactory.deployUpgradeableProxy(
             3,
             address(deliveryPlaceLogic),
-            bytes(deploy_data)
+            manager
         );
         address capitalPoolProxy = tadleFactory.deployUpgradeableProxy(
             4,
             address(capitalPoolLogic),
-            bytes(deploy_data)
+            manager
         );
         address tokenManagerProxy = tadleFactory.deployUpgradeableProxy(
             5,
             address(tokenManagerLogic),
-            bytes(deploy_data)
+            manager
         );
 
         vm.stopPrank();
@@ -98,9 +97,10 @@ contract PreMarketsTest is Test {
         preMarktes = PreMarktes(preMarktesProxy);
         deliveryPlace = DeliveryPlace(deliveryPlaceProxy);
 
-        vm.startPrank(user1);
+        vm.startPrank(manager);
         // initialize
         systemConfig.initialize(basePlatformFeeRate, baseReferralRate);
+
         tokenManager.initialize(address(weth9));
         address[] memory tokenAddressList = new address[](2);
 
@@ -151,19 +151,19 @@ contract PreMarketsTest is Test {
             )
         );
 
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
         preMarktes.createTaker(offerAddr, 500);
 
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         preMarktes.listOffer(stock1Addr, 0.006 * 1e18, 12000);
 
-        address offer1Addr = GenerateAddress.generateOfferAddress(1);
+        address offer1Addr = GenerateAddress.generateOfferAddress(2);
         preMarktes.closeOffer(stock1Addr, offer1Addr);
         preMarktes.relistOffer(stock1Addr, offer1Addr);
 
         vm.stopPrank();
 
-        vm.prank(user1);
+        vm.prank(manager);
         systemConfig.updateMarket(
             "Backpack",
             address(mockPointToken),
@@ -195,19 +195,19 @@ contract PreMarketsTest is Test {
             )
         );
 
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
         preMarktes.createTaker(offerAddr, 500);
 
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         preMarktes.listOffer(stock1Addr, 0.006 * 1e18, 12000);
 
-        address offer1Addr = GenerateAddress.generateOfferAddress(1);
+        address offer1Addr = GenerateAddress.generateOfferAddress(2);
         preMarktes.closeOffer(stock1Addr, offer1Addr);
         preMarktes.relistOffer(stock1Addr, offer1Addr);
 
         vm.stopPrank();
 
-        vm.prank(user1);
+        vm.prank(manager);
         systemConfig.updateMarket(
             "Backpack",
             address(mockPointToken),
@@ -239,13 +239,13 @@ contract PreMarketsTest is Test {
             )
         );
 
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
         preMarktes.createTaker(offerAddr, 500);
 
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         vm.stopPrank();
 
-        vm.prank(user1);
+        vm.prank(manager);
         systemConfig.updateMarket(
             "Backpack",
             address(mockPointToken),
@@ -277,19 +277,19 @@ contract PreMarketsTest is Test {
             )
         );
 
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
         preMarktes.createTaker{value: 0.005175 * 1e18}(offerAddr, 500);
 
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         preMarktes.listOffer(stock1Addr, 0.006 * 1e18, 12000);
 
-        address offer1Addr = GenerateAddress.generateOfferAddress(1);
+        address offer1Addr = GenerateAddress.generateOfferAddress(2);
         preMarktes.closeOffer(stock1Addr, offer1Addr);
         preMarktes.relistOffer(stock1Addr, offer1Addr);
 
         vm.stopPrank();
 
-        vm.prank(user1);
+        vm.prank(manager);
         systemConfig.updateMarket(
             "Backpack",
             address(mockPointToken),
@@ -321,23 +321,23 @@ contract PreMarketsTest is Test {
             )
         );
 
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
         preMarktes.createTaker{value: 0.005175 * 1e18}(offerAddr, 500);
 
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         preMarktes.listOffer{value: 0.0072 * 1e18}(
             stock1Addr,
             0.006 * 1e18,
             12000
         );
 
-        address offer1Addr = GenerateAddress.generateOfferAddress(1);
+        address offer1Addr = GenerateAddress.generateOfferAddress(2);
         preMarktes.closeOffer(stock1Addr, offer1Addr);
         preMarktes.relistOffer{value: 0.0072 * 1e18}(stock1Addr, offer1Addr);
 
         vm.stopPrank();
 
-        vm.prank(user1);
+        vm.prank(manager);
         systemConfig.updateMarket(
             "Backpack",
             address(mockPointToken),
@@ -369,13 +369,13 @@ contract PreMarketsTest is Test {
             )
         );
 
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
         preMarktes.createTaker{value: 0.006175 * 1e18}(offerAddr, 500);
 
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         vm.stopPrank();
 
-        vm.prank(user1);
+        vm.prank(manager);
         systemConfig.updateMarket(
             "Backpack",
             address(mockPointToken),
@@ -411,7 +411,7 @@ contract PreMarketsTest is Test {
         uint256 userUSDTBalance1 = mockUSDCToken.balanceOf(user);
         assertEq(userUSDTBalance1, userUSDTBalance0 - 0.012 * 1e18);
 
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
         vm.stopPrank();
 
         vm.startPrank(user1);
@@ -460,25 +460,25 @@ contract PreMarketsTest is Test {
         mockUSDCToken.approve(address(tokenManager), type(uint256).max);
         preMarktes.createTaker(offerAddr, 500);
 
-        address stock2Addr = GenerateAddress.generateStockAddress(2);
+        address stock2Addr = GenerateAddress.generateStockAddress(3);
         preMarktes.listOffer(stock2Addr, 0.006 * 1e18, 12000);
         vm.stopPrank();
 
-        address offer2Addr = GenerateAddress.generateOfferAddress(2);
+        address offer2Addr = GenerateAddress.generateOfferAddress(3);
         vm.startPrank(user3);
         mockUSDCToken.approve(address(tokenManager), type(uint256).max);
         preMarktes.createTaker(offer2Addr, 200);
         vm.stopPrank();
 
         vm.startPrank(user);
-        address originStock = GenerateAddress.generateStockAddress(0);
-        address originOffer = GenerateAddress.generateOfferAddress(0);
+        address originStock = GenerateAddress.generateStockAddress(1);
+        address originOffer = GenerateAddress.generateOfferAddress(1);
         preMarktes.closeOffer(originStock, originOffer);
         preMarktes.relistOffer(originStock, originOffer);
 
         vm.stopPrank();
 
-        vm.prank(user1);
+        vm.prank(manager);
         systemConfig.updateMarket(
             "Backpack",
             address(mockPointToken),
@@ -493,14 +493,14 @@ contract PreMarketsTest is Test {
         vm.stopPrank();
 
         vm.prank(user1);
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         deliveryPlace.closeBidTaker(stock1Addr);
 
         vm.prank(user2);
         deliveryPlace.closeBidTaker(stock2Addr);
 
         vm.prank(user3);
-        address stock3Addr = GenerateAddress.generateStockAddress(3);
+        address stock3Addr = GenerateAddress.generateStockAddress(4);
         deliveryPlace.closeBidTaker(stock3Addr);
     }
 
@@ -524,7 +524,7 @@ contract PreMarketsTest is Test {
         uint256 userUSDTBalance1 = mockUSDCToken.balanceOf(user);
         assertEq(userUSDTBalance1, userUSDTBalance0 - 0.012 * 1e18);
 
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
         vm.stopPrank();
 
         vm.startPrank(user1);
@@ -573,25 +573,25 @@ contract PreMarketsTest is Test {
         mockUSDCToken.approve(address(tokenManager), type(uint256).max);
         preMarktes.createTaker(offerAddr, 500);
 
-        address stock2Addr = GenerateAddress.generateStockAddress(2);
+        address stock2Addr = GenerateAddress.generateStockAddress(3);
         preMarktes.listOffer(stock2Addr, 0.006 * 1e18, 12000);
         vm.stopPrank();
 
-        address offer2Addr = GenerateAddress.generateOfferAddress(2);
+        address offer2Addr = GenerateAddress.generateOfferAddress(3);
         vm.startPrank(user3);
         mockUSDCToken.approve(address(tokenManager), type(uint256).max);
         preMarktes.createTaker(offer2Addr, 200);
         vm.stopPrank();
 
         vm.startPrank(user);
-        address originStock = GenerateAddress.generateStockAddress(0);
-        address originOffer = GenerateAddress.generateOfferAddress(0);
+        address originStock = GenerateAddress.generateStockAddress(1);
+        address originOffer = GenerateAddress.generateOfferAddress(1);
         preMarktes.closeOffer(originStock, originOffer);
         preMarktes.relistOffer(originStock, originOffer);
 
         vm.stopPrank();
 
-        vm.prank(user1);
+        vm.prank(manager);
         systemConfig.updateMarket(
             "Backpack",
             address(mockPointToken),
@@ -606,7 +606,7 @@ contract PreMarketsTest is Test {
         vm.stopPrank();
 
         vm.prank(user1);
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         deliveryPlace.closeBidTaker(stock1Addr);
 
         vm.prank(user2);
@@ -616,7 +616,7 @@ contract PreMarketsTest is Test {
         deliveryPlace.settleAskMaker(offer2Addr, 200);
 
         vm.prank(user3);
-        address stock3Addr = GenerateAddress.generateStockAddress(3);
+        address stock3Addr = GenerateAddress.generateStockAddress(4);
         deliveryPlace.closeBidTaker(stock3Addr);
     }
 
@@ -639,8 +639,8 @@ contract PreMarketsTest is Test {
 
         vm.startPrank(user1);
         mockUSDCToken.approve(address(tokenManager), type(uint256).max);
-        address stockAddr = GenerateAddress.generateStockAddress(0);
-        address offerAddr = GenerateAddress.generateOfferAddress(0);
+        address stockAddr = GenerateAddress.generateStockAddress(1);
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
 
         preMarktes.createTaker(offerAddr, 500);
         vm.stopPrank();
@@ -648,8 +648,16 @@ contract PreMarketsTest is Test {
         vm.prank(user);
         preMarktes.abortAskOffer(stockAddr, offerAddr);
         vm.startPrank(user1);
-        address stock1Addr = GenerateAddress.generateStockAddress(1);
+        address stock1Addr = GenerateAddress.generateStockAddress(2);
         preMarktes.abortBidTaker(stock1Addr, offerAddr);
         vm.stopPrank();
+    }
+
+    function test_referral_code() public {
+        vm.prank(user);
+        systemConfig.createReferralCode("Egtk1OG2", 300000, 0);
+
+        vm.prank(user1);
+        systemConfig.updateReferrerInfo("Egtk1OG2");
     }
 }

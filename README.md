@@ -2,7 +2,7 @@
 
 [//]: # 'contest-details-open'
 
-### Prize Pool TO BE FILLED OUT BY CYFRIN
+### Prize Pool
 
 -   Total Pool -
 -   H/M -
