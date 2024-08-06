@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {SystemConfigStorage} from "../storage/SystemConfigStorage.sol";
 import {ISystemConfig, ReferralInfo, MarketPlaceInfo, MarketPlaceStatus} from "../interfaces/ISystemConfig.sol";
@@ -28,34 +28,27 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
     ) external onlyOwner {
         basePlatformFeeRate = _basePlatformFeeRate;
         baseReferralRate = _baseReferralRate;
+
+        emit Initialize(_basePlatformFeeRate, _baseReferralRate);
     }
 
     /**
-     * @notice Update referrer setting
-     * @param _referrer Referrer address
+     * @notice Create referral code
+     * @param _referralCode Referral code
      * @param _referrerRate Referrer rate
      * @param _authorityRate Authority rate
      * @notice _referrerRate + _authorityRate = baseReferralRate + referralExtraRate
-     * @notice _referrer != _msgSender()
      */
-    function updateReferrerInfo(
-        address _referrer,
+    function createReferralCode(
+        string calldata _referralCode,
         uint256 _referrerRate,
         uint256 _authorityRate
-    ) external {
-        if (_msgSender() == _referrer) {
-            revert InvalidReferrer(_referrer);
-        }
-
-        if (_referrer == address(0x0)) {
-            revert Errors.ZeroAddress();
-        }
-
+    ) external whenNotPaused {
         if (_referrerRate < baseReferralRate) {
             revert InvalidReferrerRate(_referrerRate);
         }
 
-        uint256 referralExtraRate = referralExtraRateMap[_referrer];
+        uint256 referralExtraRate = referralExtraRateMap[msg.sender];
         uint256 totalRate = baseReferralRate + referralExtraRate;
 
         if (totalRate > Constants.REFERRAL_RATE_DECIMAL_SCALER) {
@@ -66,16 +59,67 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
             revert InvalidRate(_referrerRate, _authorityRate, totalRate);
         }
 
-        ReferralInfo storage referralInfo = referralInfoMap[_referrer];
-        referralInfo.referrer = _referrer;
-        referralInfo.referrerRate = _referrerRate;
-        referralInfo.authorityRate = _authorityRate;
+        bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
+        if (referralCodeMap[referralCodeId].referrer != address(0x0)) {
+            revert ReferralCodeExist(_referralCode);
+        }
+
+        referralCodeMap[referralCodeId] = ReferralInfo(
+            msg.sender,
+            _referrerRate,
+            _authorityRate
+        );
+
+        emit CreateReferralCode(
+            msg.sender,
+            _referralCode,
+            _referrerRate,
+            _authorityRate
+        );
+    }
+
+    /**
+     * @notice Remove referral code
+     * @param _referralCode Referral code
+     * @notice _referrer == msg.sender
+     */
+    function removeReferralCode(string calldata _referralCode) external {
+        bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
+
+        if (referralCodeMap[referralCodeId].referrer != msg.sender) {
+            revert Errors.Unauthorized();
+        }
+
+        delete referralCodeMap[referralCodeId];
+
+        emit RemoveReferralCode(msg.sender, _referralCode);
+    }
+
+    /**
+     * @notice Update referrer setting
+     * @param _referralCode Referral code
+     * @notice _referrer != msg.sender
+     */
+    function updateReferrerInfo(string calldata _referralCode) external {
+        bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
+
+        ReferralInfo storage referralInfo = referralCodeMap[referralCodeId];
+
+        if (msg.sender == referralInfo.referrer) {
+            revert InvalidReferrer(referralInfo.referrer);
+        }
+
+        if (referralInfo.referrer == address(0x0)) {
+            revert Errors.ZeroAddress();
+        }
+
+        referralInfoMap[msg.sender] = referralInfo;
 
         emit UpdateReferrerInfo(
             msg.sender,
-            _referrer,
-            _referrerRate,
-            _authorityRate
+            referralInfo.referrer,
+            referralInfo.referrerRate,
+            referralInfo.authorityRate
         );
     }
 
@@ -105,7 +149,7 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
         marketPlaceInfo.status = MarketPlaceStatus.Online;
         marketPlaceInfo.fixedratio = _fixedratio;
 
-        emit CreateMarketPlaceInfo(_marketPlaceName, marketPlace, _fixedratio);
+        emit CreateMarketPlaceInfo(marketPlace, _fixedratio, _marketPlaceName);
     }
 
     /**
@@ -142,9 +186,9 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
         marketPlaceInfo.settlementPeriod = _settlementPeriod;
 
         emit UpdateMarket(
-            _marketPlaceName,
             marketPlace,
             _tokenAddress,
+            _marketPlaceName,
             _tokenPerPoint,
             _tge,
             _settlementPeriod
@@ -168,6 +212,8 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
             marketPlace
         ];
         marketPlaceInfo.status = _status;
+
+        emit UpdateMarketPlaceStatus(marketPlace, _status);
     }
 
     /**

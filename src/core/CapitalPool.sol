@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CapitalPoolStorage} from "../storage/CapitalPoolStorage.sol";
 import {ICapitalPool} from "../interfaces/ICapitalPool.sol";
 import {RelatedContractLibraries} from "../libraries/RelatedContractLibraries.sol";
 import {Rescuable} from "../utils/Rescuable.sol";
+import {Errors} from "../utils/Errors.sol";
 
 /**
  * @title CapitalPool
  * @notice Implement the capital pool
  */
 contract CapitalPool is CapitalPoolStorage, Rescuable, ICapitalPool {
-    bytes4 private constant APPROVE_SELECTOR =
-        bytes4(keccak256(bytes("approve(address,uint256)")));
-
     constructor() Rescuable() {}
 
     /**
@@ -25,12 +24,13 @@ contract CapitalPool is CapitalPoolStorage, Rescuable, ICapitalPool {
         address tokenManager = tadleFactory.relatedContracts(
             RelatedContractLibraries.TOKEN_MANAGER
         );
+
+        if (msg.sender != tokenManager) {
+            revert Errors.Unauthorized();
+        }
+
         (bool success, ) = tokenAddr.call(
-            abi.encodeWithSelector(
-                APPROVE_SELECTOR,
-                tokenManager,
-                type(uint256).max
-            )
+            abi.encodeCall(IERC20.approve, (tokenManager, type(uint256).max))
         );
 
         if (!success) {

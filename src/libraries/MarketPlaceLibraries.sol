@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {MarketPlaceInfo, MarketPlaceStatus} from "../interfaces/ISystemConfig.sol";
+import {Errors} from "../utils/Errors.sol";
 
 /**
  * @title MarketPlaceLibraries
@@ -20,7 +21,7 @@ library MarketPlaceLibraries {
     function getMarketPlaceStatus(
         uint256 _blockTimestamp,
         MarketPlaceInfo memory _marketPlaceInfo
-    ) internal pure returns (MarketPlaceStatus _status) {
+    ) internal pure returns (MarketPlaceStatus) {
         if (_marketPlaceInfo.status == MarketPlaceStatus.Offline) {
             return MarketPlaceStatus.Offline;
         }
@@ -62,7 +63,7 @@ library MarketPlaceLibraries {
         );
 
         if (status != _status) {
-            revert("Mismatched Marketplace status");
+            revert Errors.MismatchedMarketPlaceStatus();
         }
     }
 }

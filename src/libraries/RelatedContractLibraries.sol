@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {ITadleFactory} from "../factory/ITadleFactory.sol";
 import {ISystemConfig} from "../interfaces/ISystemConfig.sol";
@@ -15,11 +15,11 @@ import {ITokenManager} from "../interfaces/ITokenManager.sol";
  * @notice Add new related contract here
  */
 library RelatedContractLibraries {
-    uint8 internal constant SYSTEM_CONFIG = 1;
-    uint8 internal constant PRE_MARKETS = 2;
-    uint8 internal constant DELIVERY_PLACE = 3;
-    uint8 internal constant CAPITAL_POOL = 4;
-    uint8 internal constant TOKEN_MANAGER = 5;
+    uint256 internal constant SYSTEM_CONFIG = 1;
+    uint256 internal constant PRE_MARKETS = 2;
+    uint256 internal constant DELIVERY_PLACE = 3;
+    uint256 internal constant CAPITAL_POOL = 4;
+    uint256 internal constant TOKEN_MANAGER = 5;
 
     
     /// @dev Get interface of system config

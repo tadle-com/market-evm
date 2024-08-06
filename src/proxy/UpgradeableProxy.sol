@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 // Upgradeable proxy contract used in OZ upgrades plugin
 // @notice the version of OZ contracts is `5.0.2`
@@ -33,8 +33,6 @@ contract UpgradeableProxy is TransparentUpgradeableProxy {
     ) TransparentUpgradeableProxy(_logic, _admin, _data) {
         tadleFactory = ITadleFactory(_tadleFactory);
     }
-
-    receive() external payable {}
 
     /**
      * @dev This empty reserved space is put in place to allow future versions to add new

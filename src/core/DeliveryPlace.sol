@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {DeliveryPlaceStorage} from "../storage/DeliveryPlaceStorage.sol";
 import {OfferStatus, StockStatus, OfferType, StockType, OfferSettleType} from "../storage/OfferStatus.sol";
@@ -19,7 +20,12 @@ import {Errors} from "../utils/Errors.sol";
  * @title DeliveryPlace
  * @notice Implement the delivery place
  */
-contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
+contract DeliveryPlace is
+    DeliveryPlaceStorage,
+    ReentrancyGuard,
+    Rescuable,
+    IDeliveryPlace
+{
     using Math for uint256;
     using RelatedContractLibraries for ITadleFactory;
 
@@ -32,15 +38,15 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
      * @dev offer status must be Settling
      * @dev refund amount = offer amount - used amount
      */
-    function closeBidOffer(address _offer) external {
+    function closeBidOffer(address _offer) external nonReentrant {
         (
             OfferInfo memory offerInfo,
             MakerInfo memory makerInfo,
             ,
             MarketPlaceStatus status
-        ) = getOfferInfo(_offer);
+        ) = _getOfferInfo(_offer);
 
-        if (_msgSender() != offerInfo.authority) {
+        if (msg.sender != offerInfo.authority) {
             revert Errors.Unauthorized();
         }
 
@@ -70,7 +76,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
         ITokenManager tokenManager = tadleFactory.getTokenManager();
         tokenManager.addTokenBalance(
             TokenBalanceType.MakerRefund,
-            _msgSender(),
+            msg.sender,
             makerInfo.tokenAddress,
             refundAmount
         );
@@ -82,7 +88,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             makerInfo.marketPlace,
             offerInfo.maker,
             _offer,
-            _msgSender()
+            msg.sender
         );
     }
 
@@ -93,7 +99,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
      * @dev offer status must be Settled
      * @param _stock stock address
      */
-    function closeBidTaker(address _stock) external {
+    function closeBidTaker(address _stock) external nonReentrant {
         IPerMarkets perMarkets = tadleFactory.getPerMarkets();
         ITokenManager tokenManager = tadleFactory.getTokenManager();
         StockInfo memory stockInfo = perMarkets.getStockInfo(_stock);
@@ -106,7 +112,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             revert InvalidStockType();
         }
 
-        if (_msgSender() != stockInfo.authority) {
+        if (msg.sender != stockInfo.authority) {
             revert Errors.Unauthorized();
         }
 
@@ -115,7 +121,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             MakerInfo memory makerInfo,
             ,
 
-        ) = getOfferInfo(stockInfo.preOffer);
+        ) = _getOfferInfo(stockInfo.preOffer);
 
         OfferInfo memory offerInfo;
         uint256 userRemainingPoints;
@@ -156,13 +162,13 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
                     offerInfo.collateralRate,
                     offerInfo.amount,
                     true,
-                    Math.Rounding.Floor
+                    Math.Rounding.Down
                 );
             } else {
                 uint256 usedAmount = offerInfo.amount.mulDiv(
                     offerInfo.usedPoints,
                     offerInfo.points,
-                    Math.Rounding.Floor
+                    Math.Rounding.Down
                 );
 
                 collateralFee = OfferLibraries.getDepositAmount(
@@ -170,7 +176,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
                     offerInfo.collateralRate,
                     usedAmount,
                     true,
-                    Math.Rounding.Floor
+                    Math.Rounding.Down
                 );
             }
         }
@@ -178,23 +184,23 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
         uint256 userCollateralFee = collateralFee.mulDiv(
             userRemainingPoints,
             offerInfo.usedPoints,
-            Math.Rounding.Floor
+            Math.Rounding.Down
         );
 
         tokenManager.addTokenBalance(
             TokenBalanceType.RemainingCash,
-            _msgSender(),
+            msg.sender,
             makerInfo.tokenAddress,
             userCollateralFee
         );
         uint256 pointTokenAmount = offerInfo.settledPointTokenAmount.mulDiv(
             userRemainingPoints,
             offerInfo.usedPoints,
-            Math.Rounding.Floor
+            Math.Rounding.Down
         );
         tokenManager.addTokenBalance(
             TokenBalanceType.PointToken,
-            _msgSender(),
+            msg.sender,
             makerInfo.tokenAddress,
             pointTokenAmount
         );
@@ -205,7 +211,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             makerInfo.marketPlace,
             offerInfo.maker,
             _stock,
-            _msgSender(),
+            msg.sender,
             userCollateralFee,
             pointTokenAmount
         );
@@ -219,13 +225,16 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
      * @param _offer offer address
      * @param _settledPoints settled points
      */
-    function settleAskMaker(address _offer, uint256 _settledPoints) external {
+    function settleAskMaker(
+        address _offer,
+        uint256 _settledPoints
+    ) external nonReentrant {
         (
             OfferInfo memory offerInfo,
             MakerInfo memory makerInfo,
             MarketPlaceInfo memory marketPlaceInfo,
             MarketPlaceStatus status
-        ) = getOfferInfo(_offer);
+        ) = _getOfferInfo(_offer);
 
         if (_settledPoints > offerInfo.usedPoints) {
             revert InvalidPoints();
@@ -247,14 +256,14 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
         }
 
         if (status == MarketPlaceStatus.AskSettling) {
-            if (_msgSender() != offerInfo.authority) {
+            if (msg.sender != offerInfo.authority) {
                 revert Errors.Unauthorized();
             }
         } else {
-            if (_msgSender() != owner()) {
+            if (msg.sender != owner()) {
                 revert Errors.Unauthorized();
             }
-            if (_settledPoints > 0) {
+            if (_settledPoints != 0) {
                 revert InvalidPoints();
             }
         }
@@ -263,9 +272,9 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             _settledPoints;
 
         ITokenManager tokenManager = tadleFactory.getTokenManager();
-        if (settledPointTokenAmount > 0) {
+        if (settledPointTokenAmount != 0) {
             tokenManager.tillIn(
-                _msgSender(),
+                msg.sender,
                 marketPlaceInfo.tokenAddress,
                 settledPointTokenAmount,
                 true
@@ -280,13 +289,13 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
                     offerInfo.collateralRate,
                     offerInfo.amount,
                     true,
-                    Math.Rounding.Floor
+                    Math.Rounding.Down
                 );
             } else {
                 uint256 usedAmount = offerInfo.amount.mulDiv(
                     offerInfo.usedPoints,
                     offerInfo.points,
-                    Math.Rounding.Floor
+                    Math.Rounding.Down
                 );
 
                 makerRefundAmount = OfferLibraries.getDepositAmount(
@@ -294,13 +303,13 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
                     offerInfo.collateralRate,
                     usedAmount,
                     true,
-                    Math.Rounding.Floor
+                    Math.Rounding.Down
                 );
             }
 
             tokenManager.addTokenBalance(
                 TokenBalanceType.SalesRevenue,
-                _msgSender(),
+                msg.sender,
                 makerInfo.tokenAddress,
                 makerRefundAmount
             );
@@ -317,7 +326,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             makerInfo.marketPlace,
             offerInfo.maker,
             _offer,
-            _msgSender(),
+            msg.sender,
             _settledPoints,
             settledPointTokenAmount,
             makerRefundAmount
@@ -332,7 +341,10 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
      * @param _settledPoints settled points
      * @notice _settledPoints must be less than or equal to stock points
      */
-    function settleAskTaker(address _stock, uint256 _settledPoints) external {
+    function settleAskTaker(
+        address _stock,
+        uint256 _settledPoints
+    ) external nonReentrant {
         IPerMarkets perMarkets = tadleFactory.getPerMarkets();
         StockInfo memory stockInfo = perMarkets.getStockInfo(_stock);
 
@@ -341,7 +353,7 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             MakerInfo memory makerInfo,
             MarketPlaceInfo memory marketPlaceInfo,
             MarketPlaceStatus status
-        ) = getOfferInfo(stockInfo.preOffer);
+        ) = _getOfferInfo(stockInfo.preOffer);
 
         if (stockInfo.stockStatus != StockStatus.Initialized) {
             revert InvalidStockStatus();
@@ -358,14 +370,14 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
         }
 
         if (status == MarketPlaceStatus.AskSettling) {
-            if (_msgSender() != offerInfo.authority) {
+            if (msg.sender != offerInfo.authority) {
                 revert Errors.Unauthorized();
             }
         } else {
-            if (_msgSender() != owner()) {
+            if (msg.sender != owner()) {
                 revert Errors.Unauthorized();
             }
-            if (_settledPoints > 0) {
+            if (_settledPoints != 0) {
                 revert InvalidPoints();
             }
         }
@@ -373,9 +385,9 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
         uint256 settledPointTokenAmount = marketPlaceInfo.tokenPerPoint *
             _settledPoints;
         ITokenManager tokenManager = tadleFactory.getTokenManager();
-        if (settledPointTokenAmount > 0) {
+        if (settledPointTokenAmount != 0) {
             tokenManager.tillIn(
-                _msgSender(),
+                msg.sender,
                 marketPlaceInfo.tokenAddress,
                 settledPointTokenAmount,
                 true
@@ -394,13 +406,13 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             offerInfo.collateralRate,
             stockInfo.amount,
             false,
-            Math.Rounding.Floor
+            Math.Rounding.Down
         );
 
         if (_settledPoints == stockInfo.points) {
             tokenManager.addTokenBalance(
                 TokenBalanceType.RemainingCash,
-                _msgSender(),
+                msg.sender,
                 makerInfo.tokenAddress,
                 collateralFee
             );
@@ -425,14 +437,14 @@ contract DeliveryPlace is DeliveryPlaceStorage, Rescuable, IDeliveryPlace {
             offerInfo.maker,
             _stock,
             stockInfo.preOffer,
-            _msgSender(),
+            msg.sender,
             _settledPoints,
             settledPointTokenAmount,
             collateralFee
         );
     }
 
-    function getOfferInfo(
+    function _getOfferInfo(
         address _offer
     )
         internal

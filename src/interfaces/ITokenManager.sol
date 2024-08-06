@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 /**
  * @title ITokenManager
@@ -41,6 +41,9 @@ interface ITokenManager {
         uint256 amount,
         bool isPointToken
     );
+
+    /// @dev Emit events when initialize
+    event Initialize(address _wrappedNativeToken);
 
     /// @dev Emit events when add token balance
     event AddTokenBalance(

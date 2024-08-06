@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 /**
  * @title ISystemConfig
@@ -25,6 +25,26 @@ interface ISystemConfig {
     function getMarketPlaceInfo(
         address _marketPlace
     ) external view returns (MarketPlaceInfo calldata);
+
+    /// @dev Emit events when initialize
+    event Initialize(uint256 _basePlatformFeeRate, uint256 _baseReferralRate);
+
+    /// @dev Emit events when create referral code
+    event CreateReferralCode(
+        address indexed referrer,
+        string code,
+        uint256 _referrerRate,
+        uint256 _authorityRate
+    );
+
+    /// @dev Emit events when remove referral code
+    event RemoveReferralCode(address indexed referrer, string code);
+
+    /// @dev Emit events when update marketPlace status
+    event UpdateMarketPlaceStatus(
+        address indexed marketPlaceAddress,
+        MarketPlaceStatus status
+    );
 
     /// @dev Emit events when base platform fee rate is updated
     event UpdateBasePlatformFeeRate(uint256 basePlatformFeeRate);
@@ -52,16 +72,16 @@ interface ISystemConfig {
 
     /// @dev Emit events when create marketPlace info
     event CreateMarketPlaceInfo(
-        string indexed marketPlaceName,
         address indexed marketPlaceAddress,
-        bool indexed fixedratio
+        bool indexed fixedratio,
+        string marketPlaceName
     );
 
     /// @dev Emit events when update marketPlace info
     event UpdateMarket(
-        string indexed marketPlaceName,
         address indexed marketPlaceAddress,
         address indexed tokenAddress,
+        string marketPlaceName,
         uint256 tokenPerPoint,
         uint256 tge,
         uint256 settlementPeriod
@@ -105,6 +125,9 @@ interface ISystemConfig {
 
     /// Error when marketPlace is not online
     error MarketPlaceNotOnline(MarketPlaceStatus status);
+
+    /// Error when referrer code exist
+    error ReferralCodeExist(string);
 }
 
 /**

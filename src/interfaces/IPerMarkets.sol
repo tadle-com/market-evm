@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {OfferStatus, AbortOfferStatus, OfferType, OfferSettleType} from "../storage/OfferStatus.sol";
 import {StockStatus, StockType} from "../storage/OfferStatus.sol";
@@ -151,6 +151,9 @@ interface IPerMarkets {
         uint256 _settledPoints,
         uint256 _settledPointTokenAmount
     );
+
+    /// @dev Event when rollin
+    event Rollin(address indexed authority, uint256 timestamp);
 
     /// @dev Error when invalid each trade tax rate
     error InvalidEachTradeTaxRate();

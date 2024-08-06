@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 interface ITadleFactory {
     /// @dev get related contract address by index
-    function relatedContracts(uint8 _index) external view returns (address);
+    function relatedContracts(uint256 _index) external view returns (address);
 
     /// @dev Emit event when proxy admin is deployed
     event ProxyAdminDeployed(address _proxyAdmin);

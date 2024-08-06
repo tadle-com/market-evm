@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {UpgradeableStorage} from "./UpgradeableStorage.sol";
 
@@ -29,9 +29,13 @@ contract PerMarketsStorage is UpgradeableStorage {
     /// @notice the storage slot is 53
     mapping(address => MakerInfo) public makerInfoMap;
 
+    /// @dev rollin at
+    /// @notice the storage slot is 54
+    mapping(address => uint256) public rollinAtMap;
+
     /// @dev empty reserved space is put in place to allow future versions to add new
     /// variables without shifting down storage in the inheritance chain.
     /// See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
-    /// start from slot 54, end at slot 149
-    uint256[96] private __gap;
+    /// start from slot 55, end at slot 149
+    uint256[95] private __gap;
 }

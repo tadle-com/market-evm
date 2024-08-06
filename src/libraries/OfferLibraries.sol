@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {OfferType} from "../interfaces/IPerMarkets.sol";
 import {Constants} from "../libraries/Constants.sol";
 
@@ -71,7 +71,7 @@ library OfferLibraries {
             _amount,
             _usedPoints,
             _points,
-            Math.Rounding.Ceil
+            Math.Rounding.Up
         );
 
         if (_offerType == OfferType.Bid) {
@@ -83,7 +83,7 @@ library OfferLibraries {
                 _amount - usedAmount,
                 _collateralRate,
                 Constants.COLLATERAL_RATE_DECIMAL_SCALER,
-                Math.Rounding.Floor
+                Math.Rounding.Down
             );
     }
 }

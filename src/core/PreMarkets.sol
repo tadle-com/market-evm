@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {PerMarketsStorage} from "../storage/PerMarketsStorage.sol";
 import {OfferStatus, AbortOfferStatus, OfferType, OfferSettleType} from "../storage/OfferStatus.sol";
@@ -24,7 +25,13 @@ import {Errors} from "../utils/Errors.sol";
  * @title PreMarkets
  * @notice Implement the pre market
  */
-contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
+contract PreMarktes is
+    PerMarketsStorage,
+    ReentrancyGuard,
+    Rescuable,
+    Related,
+    IPerMarkets
+{
     using Math for uint256;
     using RelatedContractLibraries for ITadleFactory;
     using MarketPlaceLibraries for MarketPlaceInfo;
@@ -36,7 +43,9 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
      * @dev params must be valid, details in CreateOfferParams
      * @dev points and amount must be greater than 0
      */
-    function createOffer(CreateOfferParams calldata params) external payable {
+    function createOffer(
+        CreateOfferParams calldata params
+    ) external payable nonReentrant {
         /**
          * @dev points and amount must be greater than 0
          * @dev eachTradeTax must be less than 100%, decimal scaler is 10000
@@ -63,6 +72,8 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             MarketPlaceStatus.Online
         );
 
+        offerId = offerId + 1;
+
         /// @dev generate address for maker, offer, stock.
         address makerAddr = GenerateAddress.generateMakerAddress(offerId);
         address offerAddr = GenerateAddress.generateOfferAddress(offerId);
@@ -80,21 +91,19 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             revert StockAlreadyExist();
         }
 
-        offerId = offerId + 1;
-
         {
-            /// @dev transfer collateral from _msgSender() to capital pool
+            /// @dev transfer collateral from msg.sender to capital pool
             uint256 transferAmount = OfferLibraries.getDepositAmount(
                 params.offerType,
                 params.collateralRate,
                 params.amount,
                 true,
-                Math.Rounding.Ceil
+                Math.Rounding.Up
             );
 
             ITokenManager tokenManager = tadleFactory.getTokenManager();
             tokenManager.tillIn{value: msg.value}(
-                _msgSender(),
+                msg.sender,
                 params.tokenAddress,
                 transferAmount,
                 false
@@ -104,7 +113,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         /// @dev update maker info
         makerInfoMap[makerAddr] = MakerInfo({
             offerSettleType: params.offerSettleType,
-            authority: _msgSender(),
+            authority: msg.sender,
             marketPlace: params.marketPlace,
             tokenAddress: params.tokenAddress,
             originOffer: offerAddr,
@@ -115,7 +124,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         /// @dev update offer info
         offerInfoMap[offerAddr] = OfferInfo({
             id: offerId,
-            authority: _msgSender(),
+            authority: msg.sender,
             maker: makerAddr,
             offerStatus: OfferStatus.Virgin,
             offerType: params.offerType,
@@ -137,7 +146,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             stockType: params.offerType == OfferType.Ask
                 ? StockType.Bid
                 : StockType.Ask,
-            authority: _msgSender(),
+            authority: msg.sender,
             maker: makerAddr,
             preOffer: address(0x0),
             offer: offerAddr,
@@ -150,7 +159,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             makerAddr,
             stockAddr,
             params.marketPlace,
-            _msgSender(),
+            msg.sender,
             params.points,
             params.amount
         );
@@ -161,7 +170,10 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
      * @param _offer offer address
      * @param _points points
      */
-    function createTaker(address _offer, uint256 _points) external payable {
+    function createTaker(
+        address _offer,
+        uint256 _points
+    ) external payable nonReentrant {
         /**
          * @dev offer must be virgin
          * @dev points must be greater than 0
@@ -197,11 +209,12 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         }
 
         ReferralInfo memory referralInfo = systemConfig.getReferralInfo(
-            _msgSender()
+            msg.sender
         );
 
-        uint256 platformFeeRate = systemConfig.getPlatformFeeRate(_msgSender());
+        uint256 platformFeeRate = systemConfig.getPlatformFeeRate(msg.sender);
 
+        offerId = offerId + 1;
         /// @dev generate stock address
         address stockAddr = GenerateAddress.generateStockAddress(offerId);
         if (stockInfoMap[stockAddr].authority != address(0x0)) {
@@ -212,7 +225,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         uint256 depositAmount = _points.mulDiv(
             offerInfo.amount,
             offerInfo.points,
-            Math.Rounding.Ceil
+            Math.Rounding.Up
         );
         uint256 platformFee = depositAmount.mulDiv(
             platformFeeRate,
@@ -242,7 +255,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             stockType: offerInfo.offerType == OfferType.Ask
                 ? StockType.Bid
                 : StockType.Ask,
-            authority: _msgSender(),
+            authority: msg.sender,
             maker: offerInfo.maker,
             preOffer: _offer,
             points: _points,
@@ -250,7 +263,6 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             offer: address(0x0)
         });
 
-        offerId = offerId + 1;
         uint256 remainingPlatformFee = _updateReferralBonus(
             platformFee,
             depositAmount,
@@ -296,7 +308,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         address _stock,
         uint256 _amount,
         uint256 _collateralRate
-    ) external payable {
+    ) external payable nonReentrant {
         if (_amount == 0x0) {
             revert Errors.AmountIsZero();
         }
@@ -306,7 +318,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         }
 
         StockInfo storage stockInfo = stockInfoMap[_stock];
-        if (_msgSender() != stockInfo.authority) {
+        if (msg.sender != stockInfo.authority) {
             revert Errors.Unauthorized();
         }
 
@@ -349,12 +361,12 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
                 offerInfo.collateralRate,
                 _amount,
                 true,
-                Math.Rounding.Ceil
+                Math.Rounding.Up
             );
 
             ITokenManager tokenManager = tadleFactory.getTokenManager();
             tokenManager.tillIn{value: msg.value}(
-                _msgSender(),
+                msg.sender,
                 makerInfo.tokenAddress,
                 transferAmount,
                 false
@@ -369,7 +381,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         /// @dev update offer info
         offerInfoMap[offerAddr] = OfferInfo({
             id: stockInfo.id,
-            authority: _msgSender(),
+            authority: msg.sender,
             maker: offerInfo.maker,
             offerStatus: OfferStatus.Virgin,
             offerType: offerInfo.offerType,
@@ -389,7 +401,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         emit ListOffer(
             offerAddr,
             _stock,
-            _msgSender(),
+            msg.sender,
             stockInfo.points,
             _amount
         );
@@ -403,7 +415,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
      * @dev Market place must be online
      * @dev Only offer status is virgin can be closed
      */
-    function closeOffer(address _stock, address _offer) external {
+    function closeOffer(address _stock, address _offer) external nonReentrant {
         OfferInfo storage offerInfo = offerInfoMap[_offer];
         StockInfo storage stockInfo = stockInfoMap[_stock];
 
@@ -411,7 +423,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             revert InvalidOfferAccount(stockInfo.offer, _offer);
         }
 
-        if (offerInfo.authority != _msgSender()) {
+        if (offerInfo.authority != msg.sender) {
             revert Errors.Unauthorized();
         }
 
@@ -449,14 +461,14 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             ITokenManager tokenManager = tadleFactory.getTokenManager();
             tokenManager.addTokenBalance(
                 TokenBalanceType.MakerRefund,
-                _msgSender(),
+                msg.sender,
                 makerInfo.tokenAddress,
                 refundAmount
             );
         }
 
         offerInfo.offerStatus = OfferStatus.Canceled;
-        emit CloseOffer(_offer, _msgSender());
+        emit CloseOffer(_offer, msg.sender);
     }
 
     /**
@@ -467,7 +479,10 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
      * @dev Market place must be online
      * @dev Only offer status is canceled can be relisted
      */
-    function relistOffer(address _stock, address _offer) external payable {
+    function relistOffer(
+        address _stock,
+        address _offer
+    ) external payable nonReentrant {
         OfferInfo storage offerInfo = offerInfoMap[_offer];
         StockInfo storage stockInfo = stockInfoMap[_stock];
 
@@ -475,7 +490,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             revert InvalidOfferAccount(stockInfo.offer, _offer);
         }
 
-        if (offerInfo.authority != _msgSender()) {
+        if (offerInfo.authority != msg.sender) {
             revert Errors.Unauthorized();
         }
 
@@ -513,7 +528,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
 
             ITokenManager tokenManager = tadleFactory.getTokenManager();
             tokenManager.tillIn{value: msg.value}(
-                _msgSender(),
+                msg.sender,
                 makerInfo.tokenAddress,
                 depositAmount,
                 false
@@ -522,7 +537,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
 
         /// @dev update offer status to virgin
         offerInfo.offerStatus = OfferStatus.Virgin;
-        emit RelistOffer(_offer, _msgSender());
+        emit RelistOffer(_offer, msg.sender);
     }
 
     /**
@@ -533,11 +548,14 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
      * @dev Only offer status is virgin or canceled can be aborted
      * @dev Market place must be online
      */
-    function abortAskOffer(address _stock, address _offer) external {
+    function abortAskOffer(
+        address _stock,
+        address _offer
+    ) external nonReentrant {
         StockInfo storage stockInfo = stockInfoMap[_stock];
         OfferInfo storage offerInfo = offerInfoMap[_offer];
 
-        if (offerInfo.authority != _msgSender()) {
+        if (offerInfo.authority != msg.sender) {
             revert Errors.Unauthorized();
         }
 
@@ -588,7 +606,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             remainingAmount = offerInfo.amount.mulDiv(
                 offerInfo.usedPoints,
                 offerInfo.points,
-                Math.Rounding.Floor
+                Math.Rounding.Down
             );
         }
 
@@ -597,19 +615,19 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             offerInfo.collateralRate,
             remainingAmount,
             true,
-            Math.Rounding.Floor
+            Math.Rounding.Down
         );
         uint256 totalUsedAmount = offerInfo.amount.mulDiv(
             offerInfo.usedPoints,
             offerInfo.points,
-            Math.Rounding.Ceil
+            Math.Rounding.Up
         );
         uint256 totalDepositAmount = OfferLibraries.getDepositAmount(
             offerInfo.offerType,
             offerInfo.collateralRate,
             totalUsedAmount,
             false,
-            Math.Rounding.Ceil
+            Math.Rounding.Up
         );
 
         ///@dev update refund amount for offer authority
@@ -617,13 +635,13 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         if (transferAmount > totalDepositAmount) {
             makerRefundAmount = transferAmount - totalDepositAmount;
         } else {
-            makerRefundAmount = 0;
+            makerRefundAmount = uint256(0x0);
         }
 
         ITokenManager tokenManager = tadleFactory.getTokenManager();
         tokenManager.addTokenBalance(
             TokenBalanceType.MakerRefund,
-            _msgSender(),
+            msg.sender,
             makerInfo.tokenAddress,
             makerRefundAmount
         );
@@ -631,7 +649,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         offerInfo.abortOfferStatus = AbortOfferStatus.Aborted;
         offerInfo.offerStatus = OfferStatus.Settled;
 
-        emit AbortAskOffer(_offer, _msgSender());
+        emit AbortAskOffer(_offer, msg.sender);
     }
 
     /**
@@ -642,11 +660,14 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
      * @dev Only offer abort status is aborted can be aborted
      * @dev Update stock authority refund amount
      */
-    function abortBidTaker(address _stock, address _offer) external {
+    function abortBidTaker(
+        address _stock,
+        address _offer
+    ) external nonReentrant {
         StockInfo storage stockInfo = stockInfoMap[_stock];
         OfferInfo storage preOfferInfo = offerInfoMap[_offer];
 
-        if (stockInfo.authority != _msgSender()) {
+        if (stockInfo.authority != msg.sender) {
             revert Errors.Unauthorized();
         }
 
@@ -671,7 +692,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         uint256 depositAmount = stockInfo.points.mulDiv(
             preOfferInfo.points,
             preOfferInfo.amount,
-            Math.Rounding.Floor
+            Math.Rounding.Down
         );
 
         uint256 transferAmount = OfferLibraries.getDepositAmount(
@@ -679,21 +700,30 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             preOfferInfo.collateralRate,
             depositAmount,
             false,
-            Math.Rounding.Floor
+            Math.Rounding.Down
         );
 
         MakerInfo storage makerInfo = makerInfoMap[preOfferInfo.maker];
         ITokenManager tokenManager = tadleFactory.getTokenManager();
         tokenManager.addTokenBalance(
             TokenBalanceType.MakerRefund,
-            _msgSender(),
+            msg.sender,
             makerInfo.tokenAddress,
             transferAmount
         );
 
         stockInfo.stockStatus = StockStatus.Finished;
 
-        emit AbortBidTaker(_offer, _msgSender());
+        emit AbortBidTaker(_offer, msg.sender);
+    }
+
+    /**
+     * @notice rollin
+     * @dev set rollin timestamp
+     */
+    function rollin() external {
+        rollinAtMap[msg.sender] = block.timestamp;
+        emit Rollin(msg.sender, block.timestamp);
     }
 
     /**
@@ -705,7 +735,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
     function updateOfferStatus(
         address _offer,
         OfferStatus _status
-    ) external onlyDeliveryPlace(tadleFactory, _msgSender()) {
+    ) external onlyDeliveryPlace(tadleFactory, msg.sender) {
         OfferInfo storage offerInfo = offerInfoMap[_offer];
         offerInfo.offerStatus = _status;
 
@@ -721,7 +751,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
     function updateStockStatus(
         address _stock,
         StockStatus _status
-    ) external onlyDeliveryPlace(tadleFactory, _msgSender()) {
+    ) external onlyDeliveryPlace(tadleFactory, msg.sender) {
         StockInfo storage stockInfo = stockInfoMap[_stock];
         stockInfo.stockStatus = _status;
 
@@ -739,7 +769,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         address _offer,
         uint256 _settledPoints,
         uint256 _settledPointTokenAmount
-    ) external onlyDeliveryPlace(tadleFactory, _msgSender()) {
+    ) external onlyDeliveryPlace(tadleFactory, msg.sender) {
         OfferInfo storage offerInfo = offerInfoMap[_offer];
         offerInfo.settledPoints = _settledPoints;
         offerInfo.settledPointTokenAmount = _settledPointTokenAmount;
@@ -761,7 +791,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         address _stock,
         uint256 _settledPoints,
         uint256 _settledPointTokenAmount
-    ) external onlyDeliveryPlace(tadleFactory, _msgSender()) {
+    ) external onlyDeliveryPlace(tadleFactory, msg.sender) {
         StockInfo storage stockInfo = stockInfoMap[_stock];
         OfferInfo storage offerInfo = offerInfoMap[_offer];
 
@@ -823,13 +853,13 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             offerInfo.collateralRate,
             depositAmount,
             false,
-            Math.Rounding.Ceil
+            Math.Rounding.Up
         );
 
         transferAmount = transferAmount + platformFee + tradeTax;
 
         tokenManager.tillIn{value: msg.value}(
-            _msgSender(),
+            msg.sender,
             makerInfo.tokenAddress,
             transferAmount,
             false
@@ -858,7 +888,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             uint256 referrerReferralBonus = platformFee.mulDiv(
                 referralInfo.referrerRate,
                 Constants.REFERRAL_RATE_DECIMAL_SCALER,
-                Math.Rounding.Floor
+                Math.Rounding.Down
             );
 
             /**
@@ -875,12 +905,12 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             uint256 authorityReferralBonus = platformFee.mulDiv(
                 referralInfo.authorityRate,
                 Constants.REFERRAL_RATE_DECIMAL_SCALER,
-                Math.Rounding.Floor
+                Math.Rounding.Down
             );
 
             tokenManager.addTokenBalance(
                 TokenBalanceType.ReferralBonus,
-                _msgSender(),
+                msg.sender,
                 makerInfo.tokenAddress,
                 authorityReferralBonus
             );
@@ -893,7 +923,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
             /// @dev emit ReferralBonus
             emit ReferralBonus(
                 stockAddr,
-                _msgSender(),
+                msg.sender,
                 referralInfo.referrer,
                 authorityReferralBonus,
                 referrerReferralBonus,
@@ -941,7 +971,7 @@ contract PreMarktes is PerMarketsStorage, Rescuable, Related, IPerMarkets {
         } else {
             tokenManager.addTokenBalance(
                 TokenBalanceType.SalesRevenue,
-                _msgSender(),
+                msg.sender,
                 makerInfo.tokenAddress,
                 _depositAmount
             );

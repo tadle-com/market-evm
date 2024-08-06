@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {UpgradeableStorage} from "./UpgradeableStorage.sol";
 import {ReferralInfo, MarketPlaceInfo} from "../interfaces/ISystemConfig.sol";
@@ -22,6 +22,9 @@ contract SystemConfigStorage is UpgradeableStorage {
     /// @dev user platform fee rate
     mapping(address => uint256) public userPlatformFeeRate;
 
+    /// @dev user referral code
+    mapping(bytes32 => ReferralInfo) public referralCodeMap;
+
     /// @dev user referral extra rate
     /// @notice baseReferralRate + extraReferralRate = referrerRate + authorReferralRate
     /// @dev referrerRate is the reward given to referrer
@@ -37,6 +40,6 @@ contract SystemConfigStorage is UpgradeableStorage {
     /// @dev empty reserved space is put in place to allow future versions to add new
     /// variables without shifting down storage in the inheritance chain.
     /// See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
-    /// start from slot 56, end at slot 149
-    uint256[94] private __gap;
+    /// start from slot 57, end at slot 149
+    uint256[93] private __gap;
 }

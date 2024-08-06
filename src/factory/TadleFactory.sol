@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
-/// @dev Proxy admin contract used in OZ upgrades plugin
-import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
-
 import {ITadleFactory} from "./ITadleFactory.sol";
 import {Address} from "../libraries/Address.sol";
 import {UpgradeableProxy} from "../proxy/UpgradeableProxy.sol";
+import {Errors} from "../utils/Errors.sol";
 
 /**
  * @title TadleFactory
@@ -18,7 +16,8 @@ contract TadleFactory is Context, ITadleFactory {
     using Address for address;
 
     /// @dev address of guardian, who can deploy some contracts
-    address internal guardian;
+    /// @notice guardian only can be used to deploy and upgrade related contract
+    address public guardian;
 
     /**
      * @dev mapping of related contracts, deployed by factory
@@ -28,16 +27,20 @@ contract TadleFactory is Context, ITadleFactory {
      *      4 => CapitalPool
      *      5 => TokenManager
      */
-    mapping(uint8 => address) public relatedContracts;
+    mapping(uint256 => address) public relatedContracts;
 
     modifier onlyGuardian() {
-        if (_msgSender() != guardian) {
-            revert CallerIsNotGuardian(guardian, _msgSender());
+        if (msg.sender != guardian) {
+            revert CallerIsNotGuardian(guardian, msg.sender);
         }
         _;
     }
 
     constructor(address _guardian) {
+        if (_guardian == address(0x0)) {
+            revert Errors.ZeroAddress();
+        }
+
         guardian = _guardian;
     }
 
@@ -46,16 +49,21 @@ contract TadleFactory is Context, ITadleFactory {
      * @dev guardian can deploy related contract
      * @param _relatedContractIndex index of related contract
      * @param _logic address of logic contract
-     * @param _data call data for logic
+     * @param _manager the owner of related contract
      */
     function deployUpgradeableProxy(
-        uint8 _relatedContractIndex,
+        uint256 _relatedContractIndex,
         address _logic,
-        bytes memory _data
+        address _manager
     ) external onlyGuardian returns (address) {
         /// @dev the logic address must be a contract
         if (!_logic.isContract()) {
             revert LogicAddrIsNotContract(_logic);
+        }
+
+        /// @notice guardian only can be used to deploy and upgrade related contract
+        if (_manager == guardian) {
+            revert Errors.InvalidManager(_manager);
         }
 
         /// @dev deploy proxy
@@ -63,10 +71,15 @@ contract TadleFactory is Context, ITadleFactory {
             _logic,
             guardian,
             address(this),
-            _data
+            abi.encodeCall(IUpgradeableProxy.initializeOwnership, (_manager))
         );
-        relatedContracts[_relatedContractIndex] = address(_proxy);
         emit RelatedContractDeployed(_relatedContractIndex, address(_proxy));
+
+        relatedContracts[_relatedContractIndex] = address(_proxy);
         return address(_proxy);
     }
+}
+
+interface IUpgradeableProxy {
+    function initializeOwnership(address _newOwner) external;
 }

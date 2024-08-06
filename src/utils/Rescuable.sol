@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
 
 /**
  * @title Rescuable
@@ -10,11 +11,6 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
  * @dev An abstract contract that can be rescued.
  */
 contract Rescuable is Ownable, Pausable {
-    bytes4 private constant TRANSFER_SELECTOR =
-        bytes4(keccak256(bytes("transfer(address,uint256)")));
-    bytes4 private constant TRANSFER_FROM_SELECTOR =
-        bytes4(keccak256(bytes("transferFrom(address,address,uint256)")));
-
     /// @dev Event emitted when the pause status is set
     event SetPauseStatus(bool status);
 
@@ -28,7 +24,7 @@ contract Rescuable is Ownable, Pausable {
     error AlreadyInitialized();
 
     /// @notice Initializes the smart contract with the new implementation.
-    constructor() Ownable(_msgSender()) {}
+    constructor() Ownable() {}
 
     function initializeOwnership(address _newOwner) external {
         if (owner() != address(0x0)) {
@@ -87,7 +83,7 @@ contract Rescuable is Ownable, Pausable {
         uint256 amount
     ) internal {
         (bool success, ) = token.call(
-            abi.encodeWithSelector(TRANSFER_SELECTOR, to, amount)
+            abi.encodeCall(IERC20.transfer, (to, amount))
         );
 
         if (!success) {
@@ -108,7 +104,7 @@ contract Rescuable is Ownable, Pausable {
         uint256 amount
     ) internal {
         (bool success, ) = token.call(
-            abi.encodeWithSelector(TRANSFER_FROM_SELECTOR, from, to, amount)
+            abi.encodeCall(IERC20.transferFrom, (from, to, amount))
         );
 
         if (!success) {

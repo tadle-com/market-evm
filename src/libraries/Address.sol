@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 /**
  * @dev Collection of functions related to the address type
@@ -13,6 +13,6 @@ library Address {
         assembly {
             size := extcodesize(target)
         }
-        return size > 0;
+        return size != 0;
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 /**
  * @title Errors
@@ -17,6 +17,9 @@ library Errors {
      */
     error NotEnoughMsgValue(uint256 _msgValue, uint256 _amount);
 
+    /// @dev Error when transfer failed
+    error TransferFailed();
+
     /// @dev Error when zero address
     error ZeroAddress();
 
@@ -25,4 +28,10 @@ library Errors {
 
     /// @dev Error when unauthorized
     error Unauthorized();
+
+    /// @dev Error when invalid manager
+    error InvalidManager(address _manager);
+
+    /// @dev Error when mismatched market place status
+    error MismatchedMarketPlaceStatus();
 }

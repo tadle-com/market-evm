@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity ^0.8.13;
+pragma solidity 0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {TokenManagerStorage} from "../storage/TokenManagerStorage.sol";
 import {ITadleFactory} from "../factory/ITadleFactory.sol";
 import {ITokenManager, TokenBalanceType} from "../interfaces/ITokenManager.sol";
@@ -21,6 +22,7 @@ import {Errors} from "../utils/Errors.sol";
  */
 contract TokenManager is
     TokenManagerStorage,
+    ReentrancyGuard,
     Rescuable,
     Related,
     ITokenManager
@@ -41,7 +43,13 @@ contract TokenManager is
      * @param _wrappedNativeToken Wrapped native token
      */
     function initialize(address _wrappedNativeToken) external onlyOwner {
+        if (wrappedNativeToken != address(0x0)) {
+            revert Errors.ZeroAddress();
+        }
+
         wrappedNativeToken = _wrappedNativeToken;
+
+        emit Initialize(_wrappedNativeToken);
     }
 
     /**
@@ -61,7 +69,8 @@ contract TokenManager is
     )
         external
         payable
-        onlyRelatedContracts(tadleFactory, _msgSender())
+        nonReentrant
+        onlyRelatedContracts(tadleFactory, msg.sender)
         onlyInTokenWhiteList(_isPointToken, _tokenAddress)
     {
         /// @notice return if amount is 0
@@ -115,7 +124,7 @@ contract TokenManager is
         address _accountAddress,
         address _tokenAddress,
         uint256 _amount
-    ) external onlyRelatedContracts(tadleFactory, _msgSender()) {
+    ) external onlyRelatedContracts(tadleFactory, msg.sender) {
         userTokenBalanceMap[_accountAddress][_tokenAddress][
             _tokenBalanceType
         ] += _amount;
@@ -137,8 +146,8 @@ contract TokenManager is
     function withdraw(
         address _tokenAddress,
         TokenBalanceType _tokenBalanceType
-    ) external whenNotPaused {
-        uint256 claimAbleAmount = userTokenBalanceMap[_msgSender()][
+    ) external nonReentrant whenNotPaused {
+        uint256 claimAbleAmount = userTokenBalanceMap[msg.sender][
             _tokenAddress
         ][_tokenBalanceType];
 
@@ -166,7 +175,12 @@ contract TokenManager is
             );
 
             IWrappedNativeToken(wrappedNativeToken).withdraw(claimAbleAmount);
-            payable(msg.sender).transfer(claimAbleAmount);
+            (bool sent, ) = msg.sender.call{value: claimAbleAmount, gas: 2300}(
+                ""
+            );
+            if (!sent) {
+                revert Errors.TransferFailed();
+            }
         } else {
             /**
              * @dev token is ERC20 token
@@ -175,13 +189,13 @@ contract TokenManager is
             _safe_transfer_from(
                 _tokenAddress,
                 capitalPoolAddr,
-                _msgSender(),
+                msg.sender,
                 claimAbleAmount
             );
         }
 
         emit Withdraw(
-            _msgSender(),
+            msg.sender,
             _tokenAddress,
             _tokenBalanceType,
             claimAbleAmount
