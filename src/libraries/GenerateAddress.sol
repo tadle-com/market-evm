@@ -4,7 +4,7 @@ pragma solidity 0.8.19;
 /**
  * @title GenerateAddress
  * @dev Library of generate address
- * @dev Generate address for maker, offer, stock and market place
+ * @dev Generate address for maker, offer, holding and market place
  */
 library GenerateAddress {
     /// @dev Generate address for maker address with id
@@ -17,13 +17,13 @@ library GenerateAddress {
         return address(uint160(uint256(keccak256(abi.encode(_id, "offer")))));
     }
 
-    /// @dev Generate address for stock address with id
-    function generateStockAddress(uint256 _id) internal pure returns (address) {
-        return address(uint160(uint256(keccak256(abi.encode(_id, "stock")))));
+    /// @dev Generate address for holding address with id
+    function generateHoldingAddress(uint256 _id) internal pure returns (address) {
+        return address(uint160(uint256(keccak256(abi.encode(_id, "holding")))));
     }
 
     /// @dev Generate address for market place address with name
-    function generateMarketPlaceAddress(
+    function generateMarketplaceAddress(
         string memory _marketPlaceName
     ) internal pure returns (address) {
         return

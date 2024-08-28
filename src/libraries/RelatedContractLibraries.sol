@@ -3,7 +3,7 @@ pragma solidity 0.8.19;
 
 import {ITadleFactory} from "../factory/ITadleFactory.sol";
 import {ISystemConfig} from "../interfaces/ISystemConfig.sol";
-import {IPerMarkets} from "../interfaces/IPerMarkets.sol";
+import {IPreMarkets} from "../interfaces/IPreMarkets.sol";
 import {IDeliveryPlace} from "../interfaces/IDeliveryPlace.sol";
 import {ICapitalPool} from "../interfaces/ICapitalPool.sol";
 import {ITokenManager} from "../interfaces/ITokenManager.sol";
@@ -32,8 +32,8 @@ library RelatedContractLibraries {
     /// @dev Get interface of per markets
     function getPerMarkets(
         ITadleFactory _tadleFactory
-    ) internal view returns (IPerMarkets) {
-        return IPerMarkets(_tadleFactory.relatedContracts(PRE_MARKETS));
+    ) internal view returns (IPreMarkets) {
+        return IPreMarkets(_tadleFactory.relatedContracts(PRE_MARKETS));
     }
 
     /// @dev Get interface of delivery place

@@ -4,16 +4,16 @@ pragma solidity 0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {PerMarketsStorage} from "../storage/PerMarketsStorage.sol";
+import {PreMarketsStorage} from "../storage/PreMarketsStorage.sol";
 import {OfferStatus, AbortOfferStatus, OfferType, OfferSettleType} from "../storage/OfferStatus.sol";
-import {StockStatus, StockType} from "../storage/OfferStatus.sol";
+import {HoldingStatus, HoldingType} from "../storage/OfferStatus.sol";
 import {ITadleFactory} from "../factory/ITadleFactory.sol";
 import {ITokenManager, TokenBalanceType} from "../interfaces/ITokenManager.sol";
-import {ISystemConfig, MarketPlaceInfo, MarketPlaceStatus, ReferralInfo} from "../interfaces/ISystemConfig.sol";
-import {IPerMarkets, OfferInfo, StockInfo, MakerInfo, CreateOfferParams} from "../interfaces/IPerMarkets.sol";
+import {ISystemConfig, MarketplaceInfo, MarketplaceStatus, ReferralInfo} from "../interfaces/ISystemConfig.sol";
+import {IPreMarkets, OfferInfo, HoldingInfo, MakerInfo, CreateOfferParams} from "../interfaces/IPreMarkets.sol";
 import {IWrappedNativeToken} from "../interfaces/IWrappedNativeToken.sol";
 import {RelatedContractLibraries} from "../libraries/RelatedContractLibraries.sol";
-import {MarketPlaceLibraries} from "../libraries/MarketPlaceLibraries.sol";
+import {MarketplaceLibraries} from "../libraries/MarketplaceLibraries.sol";
 import {OfferLibraries} from "../libraries/OfferLibraries.sol";
 import {GenerateAddress} from "../libraries/GenerateAddress.sol";
 import {Constants} from "../libraries/Constants.sol";
@@ -23,62 +23,65 @@ import {Errors} from "../utils/Errors.sol";
 
 /**
  * @title PreMarkets
- * @notice Implement the pre market
+ * @dev The contract contains all trading actions from the time the market goes live until delivery.
+ *      such as create offer, create holding, list offer, close offer,
+ *      relist offer, abort ask offer, abort bid holding, rollin etc.
  */
-contract PreMarktes is
-    PerMarketsStorage,
+contract PreMarkets is
+    PreMarketsStorage,
     ReentrancyGuard,
     Rescuable,
     Related,
-    IPerMarkets
+    IPreMarkets
 {
     using Math for uint256;
     using RelatedContractLibraries for ITadleFactory;
-    using MarketPlaceLibraries for MarketPlaceInfo;
+    using MarketplaceLibraries for MarketplaceInfo;
 
     constructor() Rescuable() {}
 
     /**
      * @notice Create offer
-     * @dev params must be valid, details in CreateOfferParams
-     * @dev points and amount must be greater than 0
+     * @dev Params must be valid, details in CreateOfferParams
+     * @dev ProjectPoints and quoteTokenAmount must be greater than 0
      */
     function createOffer(
         CreateOfferParams calldata params
-    ) external payable nonReentrant {
+    ) external payable whenNotPaused nonReentrant {
         /**
-         * @dev points and amount must be greater than 0
-         * @dev eachTradeTax must be less than 100%, decimal scaler is 10000
-         * @dev collateralRate must be more than 100%, decimal scaler is 10000
+         * @dev ProjectPoints and quoteTokenAmount must be greater than 0
+         * @dev EachTradeTax must be less than 20%, decimal scaler is 10000
+         * @dev CollateralRate must be more than 100%, decimal scaler is 10000
          */
-        if (params.points == 0x0 || params.amount == 0x0) {
+        if (params.projectPoints == 0x0 || params.quoteTokenAmount == 0x0) {
             revert Errors.AmountIsZero();
         }
 
-        if (params.eachTradeTax > Constants.EACH_TRADE_TAX_DECIMAL_SCALER) {
-            revert InvalidEachTradeTaxRate();
+        if (params.eachTradeTax > Constants.EACH_TRADE_TAX_MAXINUM) {
+            revert InvalidEachTradeTaxRate(params.eachTradeTax);
         }
 
         if (params.collateralRate < Constants.COLLATERAL_RATE_DECIMAL_SCALER) {
-            revert InvalidCollateralRate();
+            revert InvalidCollateralRate(params.collateralRate);
         }
 
-        /// @dev market place must be online
+        /// @dev The market must be online
         ISystemConfig systemConfig = tadleFactory.getSystemConfig();
-        MarketPlaceInfo memory marketPlaceInfo = systemConfig
-            .getMarketPlaceInfo(params.marketPlace);
-        marketPlaceInfo.checkMarketPlaceStatus(
+        MarketplaceInfo memory marketPlaceInfo = systemConfig
+            .getMarketplaceInfo(params.marketPlace);
+        marketPlaceInfo.checkMarketplaceStatus(
             block.timestamp,
-            MarketPlaceStatus.Online
+            MarketplaceStatus.Online
         );
 
         offerId = offerId + 1;
 
-        /// @dev generate address for maker, offer, stock.
+        /// @dev Generate address for maker, offer, holding.
         address makerAddr = GenerateAddress.generateMakerAddress(offerId);
         address offerAddr = GenerateAddress.generateOfferAddress(offerId);
-        address stockAddr = GenerateAddress.generateStockAddress(offerId);
+        address holdingAddr = GenerateAddress.generateHoldingAddress(offerId);
 
+        /// @dev Maker, Offer, Holding must not initialized.
         if (makerInfoMap[makerAddr].authority != address(0x0)) {
             revert MakerAlreadyExist();
         }
@@ -87,99 +90,99 @@ contract PreMarktes is
             revert OfferAlreadyExist();
         }
 
-        if (stockInfoMap[stockAddr].authority != address(0x0)) {
-            revert StockAlreadyExist();
+        if (holdingInfoMap[holdingAddr].authority != address(0x0)) {
+            revert HoldingAlreadyExist();
         }
 
         {
-            /// @dev transfer collateral from msg.sender to capital pool
-            uint256 transferAmount = OfferLibraries.getDepositAmount(
-                params.offerType,
-                params.collateralRate,
-                params.amount,
-                true,
-                Math.Rounding.Up
-            );
+            /// @dev Transfer collateral from msg.sender to capital pool
+            uint256 collateralAmount = OfferLibraries
+                .getDepositCollateralAmount(
+                    params.offerType,
+                    params.collateralRate,
+                    params.quoteTokenAmount,
+                    true,
+                    Math.Rounding.Up
+                );
 
             ITokenManager tokenManager = tadleFactory.getTokenManager();
-            tokenManager.tillIn{value: msg.value}(
+            tokenManager.deposit{value: msg.value}(
                 msg.sender,
-                params.tokenAddress,
-                transferAmount,
+                params.collateralTokenAddr,
+                collateralAmount,
                 false
             );
         }
 
-        /// @dev update maker info
+        /// @dev Update maker info
         makerInfoMap[makerAddr] = MakerInfo({
             offerSettleType: params.offerSettleType,
             authority: msg.sender,
             marketPlace: params.marketPlace,
-            tokenAddress: params.tokenAddress,
+            collateralTokenAddr: params.collateralTokenAddr,
             originOffer: offerAddr,
-            platformFee: 0,
             eachTradeTax: params.eachTradeTax
         });
 
-        /// @dev update offer info
+        /// @dev Update offer info
         offerInfoMap[offerAddr] = OfferInfo({
-            id: offerId,
+            offerId: offerId,
             authority: msg.sender,
             maker: makerAddr,
             offerStatus: OfferStatus.Virgin,
             offerType: params.offerType,
-            points: params.points,
-            amount: params.amount,
+            projectPoints: params.projectPoints,
+            quoteTokenAmount: params.quoteTokenAmount,
             collateralRate: params.collateralRate,
             abortOfferStatus: AbortOfferStatus.Initialized,
-            usedPoints: 0,
+            usedProjectPoints: 0,
             tradeTax: 0,
-            settledPoints: 0,
+            settledProjectPoints: 0,
             settledPointTokenAmount: 0,
             settledCollateralAmount: 0
         });
 
-        /// @dev update stock info
-        stockInfoMap[stockAddr] = StockInfo({
-            id: offerId,
-            stockStatus: StockStatus.Initialized,
-            stockType: params.offerType == OfferType.Ask
-                ? StockType.Bid
-                : StockType.Ask,
+        /// @dev Update holding info
+        holdingInfoMap[holdingAddr] = HoldingInfo({
+            holdingId: offerId,
+            holdingStatus: HoldingStatus.Initialized,
+            holdingType: params.offerType == OfferType.Ask
+                ? HoldingType.Bid
+                : HoldingType.Ask,
             authority: msg.sender,
             maker: makerAddr,
             preOffer: address(0x0),
             offer: offerAddr,
-            points: params.points,
-            amount: params.amount
+            projectPoints: params.projectPoints,
+            quoteTokenAmount: params.quoteTokenAmount
         });
 
         emit CreateOffer(
             offerAddr,
             makerAddr,
-            stockAddr,
+            holdingAddr,
             params.marketPlace,
             msg.sender,
-            params.points,
-            params.amount
+            params.projectPoints,
+            params.quoteTokenAmount
         );
     }
 
     /**
-     * @notice Create taker
-     * @param _offer offer address
-     * @param _points points
+     * @notice Create holding
+     * @param _offer The offer address
+     * @param _projectPoints The projectPoints of holding
      */
-    function createTaker(
+    function createHolding(
         address _offer,
-        uint256 _points
-    ) external payable nonReentrant {
+        uint256 _projectPoints
+    ) external payable whenNotPaused nonReentrant {
         /**
-         * @dev offer must be virgin
-         * @dev points must be greater than 0
-         * @dev total points must be greater than used points plus _points
+         * @dev Offer must be virgin
+         * @dev Points must be greater than 0
+         * @dev Total projectPoints must be greater than `usedProjectPoints + _projectPoints`
          */
-        if (_points == 0x0) {
+        if (_projectPoints == 0x0) {
             revert Errors.AmountIsZero();
         }
 
@@ -189,22 +192,25 @@ contract PreMarktes is
             revert InvalidOfferStatus();
         }
 
-        if (offerInfo.points < _points + offerInfo.usedPoints) {
+        if (
+            offerInfo.projectPoints <
+            _projectPoints + offerInfo.usedProjectPoints
+        ) {
             revert NotEnoughPoints(
-                offerInfo.points,
-                offerInfo.usedPoints,
-                _points
+                offerInfo.projectPoints,
+                offerInfo.usedProjectPoints,
+                _projectPoints
             );
         }
 
-        /// @dev market place must be online
+        /// @dev The market must be online
         ISystemConfig systemConfig = tadleFactory.getSystemConfig();
         {
-            MarketPlaceInfo memory marketPlaceInfo = systemConfig
-                .getMarketPlaceInfo(makerInfo.marketPlace);
-            marketPlaceInfo.checkMarketPlaceStatus(
+            MarketplaceInfo memory marketPlaceInfo = systemConfig
+                .getMarketplaceInfo(makerInfo.marketPlace);
+            marketPlaceInfo.checkMarketplaceStatus(
                 block.timestamp,
-                MarketPlaceStatus.Online
+                MarketplaceStatus.Online
             );
         }
 
@@ -215,212 +221,218 @@ contract PreMarktes is
         uint256 platformFeeRate = systemConfig.getPlatformFeeRate(msg.sender);
 
         offerId = offerId + 1;
-        /// @dev generate stock address
-        address stockAddr = GenerateAddress.generateStockAddress(offerId);
-        if (stockInfoMap[stockAddr].authority != address(0x0)) {
-            revert StockAlreadyExist();
+        /// @dev Generate holding address
+        address holdingAddr = GenerateAddress.generateHoldingAddress(offerId);
+        if (holdingInfoMap[holdingAddr].authority != address(0x0)) {
+            revert HoldingAlreadyExist();
         }
 
         /// @dev Transfer token from user to capital pool as collateral
-        uint256 depositAmount = _points.mulDiv(
-            offerInfo.amount,
-            offerInfo.points,
+        uint256 quoteTokenAmount = _projectPoints.mulDiv(
+            offerInfo.quoteTokenAmount,
+            offerInfo.projectPoints,
             Math.Rounding.Up
         );
-        uint256 platformFee = depositAmount.mulDiv(
+        uint256 platformFee = quoteTokenAmount.mulDiv(
             platformFeeRate,
             Constants.PLATFORM_FEE_DECIMAL_SCALER
         );
-        uint256 tradeTax = depositAmount.mulDiv(
+        uint256 tradeTax = quoteTokenAmount.mulDiv(
             makerInfo.eachTradeTax,
             Constants.EACH_TRADE_TAX_DECIMAL_SCALER
         );
 
         ITokenManager tokenManager = tadleFactory.getTokenManager();
-        _depositTokenWhenCreateTaker(
+        _depositTokenWhenCreateHolding(
             platformFee,
-            depositAmount,
+            quoteTokenAmount,
             tradeTax,
             makerInfo,
             offerInfo,
             tokenManager
         );
 
-        offerInfo.usedPoints = offerInfo.usedPoints + _points;
+        offerInfo.usedProjectPoints =
+            offerInfo.usedProjectPoints +
+            _projectPoints;
 
-        /// @dev update stock info
-        stockInfoMap[stockAddr] = StockInfo({
-            id: offerId,
-            stockStatus: StockStatus.Initialized,
-            stockType: offerInfo.offerType == OfferType.Ask
-                ? StockType.Bid
-                : StockType.Ask,
+        /// @dev Update holding info
+        holdingInfoMap[holdingAddr] = HoldingInfo({
+            holdingId: offerId,
+            holdingStatus: HoldingStatus.Initialized,
+            holdingType: offerInfo.offerType == OfferType.Ask
+                ? HoldingType.Bid
+                : HoldingType.Ask,
             authority: msg.sender,
             maker: offerInfo.maker,
             preOffer: _offer,
-            points: _points,
-            amount: depositAmount,
+            projectPoints: _projectPoints,
+            quoteTokenAmount: quoteTokenAmount,
             offer: address(0x0)
         });
 
         uint256 remainingPlatformFee = _updateReferralBonus(
             platformFee,
-            depositAmount,
-            stockAddr,
+            quoteTokenAmount,
+            holdingAddr,
             makerInfo,
             referralInfo,
             tokenManager
         );
 
-        makerInfo.platformFee = makerInfo.platformFee + remainingPlatformFee;
-
-        _updateTokenBalanceWhenCreateTaker(
+        _updateTokenBalanceWhenCreateHolding(
             _offer,
             tradeTax,
-            depositAmount,
+            quoteTokenAmount,
+            remainingPlatformFee,
             offerInfo,
             makerInfo,
             tokenManager
         );
 
-        /// @dev emit CreateTaker
-        emit CreateTaker(
+        emit CreateHolding(
             _offer,
             msg.sender,
-            stockAddr,
-            _points,
-            depositAmount,
+            holdingAddr,
+            _projectPoints,
+            quoteTokenAmount,
             tradeTax,
             remainingPlatformFee
         );
     }
 
     /**
-     * @notice list offer
-     * @param _stock stock address
-     * @param _amount the amount of offer
-     * @param _collateralRate offer collateral rate
-     * @dev Only stock owner can list offer
-     * @dev Market place must be online
+     * @dev List holding
+     * @param _holding Holding address
+     * @param _quoteTokenAmount The amount of offer
+     * @param _collateralRate Offer collateral rate
+     * @dev Only holding owner can list offer
+     * @dev The market must be online
      * @dev Only ask offer can be listed
      */
-    function listOffer(
-        address _stock,
-        uint256 _amount,
+    function listHolding(
+        address _holding,
+        uint256 _quoteTokenAmount,
         uint256 _collateralRate
-    ) external payable nonReentrant {
-        if (_amount == 0x0) {
+    ) external payable whenNotPaused nonReentrant {
+        if (_quoteTokenAmount == 0x0) {
             revert Errors.AmountIsZero();
         }
 
         if (_collateralRate < Constants.COLLATERAL_RATE_DECIMAL_SCALER) {
-            revert InvalidCollateralRate();
+            revert InvalidCollateralRate(_collateralRate);
         }
 
-        StockInfo storage stockInfo = stockInfoMap[_stock];
-        if (msg.sender != stockInfo.authority) {
+        HoldingInfo storage holdingInfo = holdingInfoMap[_holding];
+        if (msg.sender != holdingInfo.authority) {
             revert Errors.Unauthorized();
         }
 
-        OfferInfo storage offerInfo = offerInfoMap[stockInfo.preOffer];
+        OfferInfo storage offerInfo = offerInfoMap[holdingInfo.preOffer];
         MakerInfo storage makerInfo = makerInfoMap[offerInfo.maker];
 
-        /// @dev market place must be online
+        /// @dev The market must be online
         ISystemConfig systemConfig = tadleFactory.getSystemConfig();
-        MarketPlaceInfo memory marketPlaceInfo = systemConfig
-            .getMarketPlaceInfo(makerInfo.marketPlace);
+        MarketplaceInfo memory marketPlaceInfo = systemConfig
+            .getMarketplaceInfo(makerInfo.marketPlace);
 
-        marketPlaceInfo.checkMarketPlaceStatus(
+        marketPlaceInfo.checkMarketplaceStatus(
             block.timestamp,
-            MarketPlaceStatus.Online
+            MarketplaceStatus.Online
         );
 
-        if (stockInfo.offer != address(0x0)) {
+        if (holdingInfo.offer != address(0x0)) {
             revert OfferAlreadyExist();
         }
 
-        if (stockInfo.stockType != StockType.Bid) {
-            revert InvalidStockType(StockType.Bid, stockInfo.stockType);
+        if (holdingInfo.holdingType != HoldingType.Bid) {
+            revert InvalidHoldingType(HoldingType.Bid, holdingInfo.holdingType);
         }
 
-        /// @dev change abort offer status when offer settle type is turbo
+        /// @dev Change abort offer status when offer settle type is `turbo`
         if (makerInfo.offerSettleType == OfferSettleType.Turbo) {
             address originOffer = makerInfo.originOffer;
-            OfferInfo memory originOfferInfo = offerInfoMap[originOffer];
+            OfferInfo storage originOfferInfo = offerInfoMap[originOffer];
 
             if (_collateralRate != originOfferInfo.collateralRate) {
-                revert InvalidCollateralRate();
+                revert InvalidCollateralRate(_collateralRate);
             }
-            originOfferInfo.abortOfferStatus = AbortOfferStatus.SubOfferListed;
+            originOfferInfo.abortOfferStatus = AbortOfferStatus.AllocationPropagated;
         }
 
-        /// @dev transfer collateral when offer settle type is protected
+        /// @dev Transfer collateral when offer settle type is `protected`
         if (makerInfo.offerSettleType == OfferSettleType.Protected) {
-            uint256 transferAmount = OfferLibraries.getDepositAmount(
-                offerInfo.offerType,
-                offerInfo.collateralRate,
-                _amount,
-                true,
-                Math.Rounding.Up
-            );
+            uint256 collateralAmount = OfferLibraries
+                .getDepositCollateralAmount(
+                    offerInfo.offerType,
+                    _collateralRate,
+                    _quoteTokenAmount,
+                    true,
+                    Math.Rounding.Up
+                );
 
             ITokenManager tokenManager = tadleFactory.getTokenManager();
-            tokenManager.tillIn{value: msg.value}(
+            tokenManager.deposit{value: msg.value}(
                 msg.sender,
-                makerInfo.tokenAddress,
-                transferAmount,
+                makerInfo.collateralTokenAddr,
+                collateralAmount,
                 false
             );
         }
 
-        address offerAddr = GenerateAddress.generateOfferAddress(stockInfo.id);
+        address offerAddr = GenerateAddress.generateOfferAddress(
+            holdingInfo.holdingId
+        );
         if (offerInfoMap[offerAddr].authority != address(0x0)) {
             revert OfferAlreadyExist();
         }
 
-        /// @dev update offer info
+        /// @dev Update offer info
         offerInfoMap[offerAddr] = OfferInfo({
-            id: stockInfo.id,
+            offerId: holdingInfo.holdingId,
             authority: msg.sender,
             maker: offerInfo.maker,
             offerStatus: OfferStatus.Virgin,
             offerType: offerInfo.offerType,
             abortOfferStatus: AbortOfferStatus.Initialized,
-            points: stockInfo.points,
-            amount: _amount,
+            projectPoints: holdingInfo.projectPoints,
+            quoteTokenAmount: _quoteTokenAmount,
             collateralRate: _collateralRate,
-            usedPoints: 0,
+            usedProjectPoints: 0,
             tradeTax: 0,
-            settledPoints: 0,
+            settledProjectPoints: 0,
             settledPointTokenAmount: 0,
             settledCollateralAmount: 0
         });
 
-        stockInfo.offer = offerAddr;
+        holdingInfo.offer = offerAddr;
 
-        emit ListOffer(
+        emit ListHolding(
             offerAddr,
-            _stock,
+            _holding,
             msg.sender,
-            stockInfo.points,
-            _amount
+            holdingInfo.projectPoints,
+            _quoteTokenAmount
         );
     }
 
     /**
-     * @notice close offer
-     * @param _stock stock address
-     * @param _offer offer address
+     * @notice Close offer
+     * @param _holding Holding address
+     * @param _offer Offer address
      * @notice Only offer owner can close offer
-     * @dev Market place must be online
+     * @dev The market must be online
      * @dev Only offer status is virgin can be closed
      */
-    function closeOffer(address _stock, address _offer) external nonReentrant {
+    function closeOffer(
+        address _holding,
+        address _offer
+    ) external whenNotPaused nonReentrant {
         OfferInfo storage offerInfo = offerInfoMap[_offer];
-        StockInfo storage stockInfo = stockInfoMap[_stock];
+        HoldingInfo storage holdingInfo = holdingInfoMap[_holding];
 
-        if (stockInfo.offer != _offer) {
-            revert InvalidOfferAccount(stockInfo.offer, _offer);
+        if (holdingInfo.offer != _offer) {
+            revert InvalidOfferAccount(holdingInfo.offer, _offer);
         }
 
         if (offerInfo.authority != msg.sender) {
@@ -432,38 +444,39 @@ contract PreMarktes is
         }
 
         MakerInfo storage makerInfo = makerInfoMap[offerInfo.maker];
-        /// @dev market place must be online
+        /// @dev The market must be online
         ISystemConfig systemConfig = tadleFactory.getSystemConfig();
-        MarketPlaceInfo memory marketPlaceInfo = systemConfig
-            .getMarketPlaceInfo(makerInfo.marketPlace);
+        MarketplaceInfo memory marketPlaceInfo = systemConfig
+            .getMarketplaceInfo(makerInfo.marketPlace);
 
-        marketPlaceInfo.checkMarketPlaceStatus(
+        marketPlaceInfo.checkMarketplaceStatus(
             block.timestamp,
-            MarketPlaceStatus.Online
+            MarketplaceStatus.Online
         );
 
         /**
-         * @dev update refund token from capital pool to balance
-         * @dev offer settle type is protected or original offer
+         * @dev Update refund token from capital pool to balance
+         * @dev The `offerSettleType` is `protected` or the offer is the original offer
          */
         if (
             makerInfo.offerSettleType == OfferSettleType.Protected ||
-            stockInfo.preOffer == address(0x0)
+            holdingInfo.preOffer == address(0x0)
         ) {
-            uint256 refundAmount = OfferLibraries.getRefundAmount(
-                offerInfo.offerType,
-                offerInfo.amount,
-                offerInfo.points,
-                offerInfo.usedPoints,
-                offerInfo.collateralRate
-            );
+            uint256 refundCollateralAmount = OfferLibraries
+                .getRefundCollateralAmount(
+                    offerInfo.offerType,
+                    offerInfo.quoteTokenAmount,
+                    offerInfo.projectPoints,
+                    offerInfo.usedProjectPoints,
+                    offerInfo.collateralRate
+                );
 
             ITokenManager tokenManager = tadleFactory.getTokenManager();
             tokenManager.addTokenBalance(
                 TokenBalanceType.MakerRefund,
                 msg.sender,
-                makerInfo.tokenAddress,
-                refundAmount
+                makerInfo.collateralTokenAddr,
+                refundCollateralAmount
             );
         }
 
@@ -472,22 +485,22 @@ contract PreMarktes is
     }
 
     /**
-     * @notice relist offer
-     * @param _stock stock address
-     * @param _offer offer address
+     * @notice Relist offer
+     * @param _holding Holding address
+     * @param _offer Offer address
      * @notice Only offer owner can relist offer
-     * @dev Market place must be online
+     * @dev The market must be online
      * @dev Only offer status is canceled can be relisted
      */
-    function relistOffer(
-        address _stock,
+    function relistHolding(
+        address _holding,
         address _offer
-    ) external payable nonReentrant {
+    ) external payable whenNotPaused nonReentrant {
         OfferInfo storage offerInfo = offerInfoMap[_offer];
-        StockInfo storage stockInfo = stockInfoMap[_stock];
+        HoldingInfo storage holdingInfo = holdingInfoMap[_holding];
 
-        if (stockInfo.offer != _offer) {
-            revert InvalidOfferAccount(stockInfo.offer, _offer);
+        if (holdingInfo.offer != _offer) {
+            revert InvalidOfferAccount(holdingInfo.offer, _offer);
         }
 
         if (offerInfo.authority != msg.sender) {
@@ -498,69 +511,69 @@ contract PreMarktes is
             revert InvalidOfferStatus();
         }
 
-        /// @dev market place must be online
+        /// @dev The market must be online
         ISystemConfig systemConfig = tadleFactory.getSystemConfig();
 
         MakerInfo storage makerInfo = makerInfoMap[offerInfo.maker];
-        MarketPlaceInfo memory marketPlaceInfo = systemConfig
-            .getMarketPlaceInfo(makerInfo.marketPlace);
+        MarketplaceInfo memory marketPlaceInfo = systemConfig
+            .getMarketplaceInfo(makerInfo.marketPlace);
 
-        marketPlaceInfo.checkMarketPlaceStatus(
+        marketPlaceInfo.checkMarketplaceStatus(
             block.timestamp,
-            MarketPlaceStatus.Online
+            MarketplaceStatus.Online
         );
 
         /**
-         * @dev transfer refund token from user to capital pool
-         * @dev offer settle type is protected or original offer
+         * @dev Transfer refund token from user to capital pool
+         * @dev The `offerSettleType` is `protected` or the offer is the original offer
          */
         if (
             makerInfo.offerSettleType == OfferSettleType.Protected ||
-            stockInfo.preOffer == address(0x0)
+            holdingInfo.preOffer == address(0x0)
         ) {
-            uint256 depositAmount = OfferLibraries.getRefundAmount(
+            uint256 collateralAmount = OfferLibraries.getRefundCollateralAmount(
                 offerInfo.offerType,
-                offerInfo.amount,
-                offerInfo.points,
-                offerInfo.usedPoints,
+                offerInfo.quoteTokenAmount,
+                offerInfo.projectPoints,
+                offerInfo.usedProjectPoints,
                 offerInfo.collateralRate
             );
 
             ITokenManager tokenManager = tadleFactory.getTokenManager();
-            tokenManager.tillIn{value: msg.value}(
+            tokenManager.deposit{value: msg.value}(
                 msg.sender,
-                makerInfo.tokenAddress,
-                depositAmount,
+                makerInfo.collateralTokenAddr,
+                collateralAmount,
                 false
             );
         }
 
         /// @dev update offer status to virgin
         offerInfo.offerStatus = OfferStatus.Virgin;
-        emit RelistOffer(_offer, msg.sender);
+        emit RelistHolding(_offer, msg.sender);
     }
 
     /**
-     * @notice abort ask offer
-     * @param _stock stock address
-     * @param _offer offer address
+     * @notice Abort ask offer
+     * @param _holding Holding address
+     * @param _offer Offer address
      * @notice Only offer owner can abort ask offer
      * @dev Only offer status is virgin or canceled can be aborted
-     * @dev Market place must be online
+     * @dev The market must be online
      */
     function abortAskOffer(
-        address _stock,
+        address _holding,
         address _offer
-    ) external nonReentrant {
-        StockInfo storage stockInfo = stockInfoMap[_stock];
+    ) external whenNotPaused nonReentrant {
+        HoldingInfo storage holdingInfo = holdingInfoMap[_holding];
         OfferInfo storage offerInfo = offerInfoMap[_offer];
 
         if (offerInfo.authority != msg.sender) {
             revert Errors.Unauthorized();
         }
 
-        if (stockInfo.offer != _offer) {
-            revert InvalidOfferAccount(stockInfo.offer, _offer);
+        if (holdingInfo.offer != _offer) {
+            revert InvalidOfferAccount(holdingInfo.offer, _offer);
         }
 
         if (offerInfo.offerType != OfferType.Ask) {
@@ -585,55 +598,59 @@ contract PreMarktes is
 
         if (
             makerInfo.offerSettleType == OfferSettleType.Turbo &&
-            stockInfo.preOffer != address(0x0)
+            holdingInfo.preOffer != address(0x0)
         ) {
             revert InvalidOffer();
         }
 
-        /// @dev market place must be online
+        /// @dev The market must be online
         ISystemConfig systemConfig = tadleFactory.getSystemConfig();
-        MarketPlaceInfo memory marketPlaceInfo = systemConfig
-            .getMarketPlaceInfo(makerInfo.marketPlace);
-        marketPlaceInfo.checkMarketPlaceStatus(
+        MarketplaceInfo memory marketPlaceInfo = systemConfig
+            .getMarketplaceInfo(makerInfo.marketPlace);
+        marketPlaceInfo.checkMarketplaceStatus(
             block.timestamp,
-            MarketPlaceStatus.Online
+            MarketplaceStatus.Online
         );
 
         uint256 remainingAmount;
         if (offerInfo.offerStatus == OfferStatus.Virgin) {
-            remainingAmount = offerInfo.amount;
+            remainingAmount = offerInfo.quoteTokenAmount;
         } else {
-            remainingAmount = offerInfo.amount.mulDiv(
-                offerInfo.usedPoints,
-                offerInfo.points,
+            remainingAmount = offerInfo.quoteTokenAmount.mulDiv(
+                offerInfo.usedProjectPoints,
+                offerInfo.projectPoints,
                 Math.Rounding.Down
             );
         }
 
-        uint256 transferAmount = OfferLibraries.getDepositAmount(
-            offerInfo.offerType,
-            offerInfo.collateralRate,
-            remainingAmount,
-            true,
-            Math.Rounding.Down
-        );
-        uint256 totalUsedAmount = offerInfo.amount.mulDiv(
-            offerInfo.usedPoints,
-            offerInfo.points,
+        uint256 remainingCollateralAmount = OfferLibraries
+            .getDepositCollateralAmount(
+                offerInfo.offerType,
+                offerInfo.collateralRate,
+                remainingAmount,
+                true,
+                Math.Rounding.Down
+            );
+        uint256 totalUsedQuoteTokenAmount = offerInfo.quoteTokenAmount.mulDiv(
+            offerInfo.usedProjectPoints,
+            offerInfo.projectPoints,
             Math.Rounding.Up
         );
-        uint256 totalDepositAmount = OfferLibraries.getDepositAmount(
-            offerInfo.offerType,
-            offerInfo.collateralRate,
-            totalUsedAmount,
-            false,
-            Math.Rounding.Up
-        );
+        uint256 totalUsedCollateralAmount = OfferLibraries
+            .getDepositCollateralAmount(
+                offerInfo.offerType,
+                offerInfo.collateralRate,
+                totalUsedQuoteTokenAmount,
+                false,
+                Math.Rounding.Up
+            );
 
-        ///@dev update refund amount for offer authority
+        ///@dev Update refund amount for offer's owner
         uint256 makerRefundAmount;
-        if (transferAmount > totalDepositAmount) {
-            makerRefundAmount = transferAmount - totalDepositAmount;
+        if (remainingCollateralAmount > totalUsedCollateralAmount) {
+            makerRefundAmount =
+                remainingCollateralAmount -
+                totalUsedCollateralAmount;
         } else {
             makerRefundAmount = uint256(0x0);
         }
@@ -642,7 +659,7 @@ contract PreMarktes is
         tokenManager.addTokenBalance(
             TokenBalanceType.MakerRefund,
             msg.sender,
-            makerInfo.tokenAddress,
+            makerInfo.collateralTokenAddr,
             makerRefundAmount
         );
 
@@ -653,32 +670,32 @@ contract PreMarktes is
     }
 
     /**
-     * @notice abort bid taker
-     * @param _stock stock address
-     * @param _offer offer address
-     * @notice Only offer owner can abort bid taker
+     * @notice Abort bid holding
+     * @param _holding Holding address
+     * @param _offer Offer address
+     * @notice Only holding owner can abort bid holding
      * @dev Only offer abort status is aborted can be aborted
-     * @dev Update stock authority refund amount
+     * @dev Update holding's refund amount
      */
-    function abortBidTaker(
-        address _stock,
+    function abortBidHolding(
+        address _holding,
         address _offer
-    ) external nonReentrant {
-        StockInfo storage stockInfo = stockInfoMap[_stock];
+    ) external whenNotPaused nonReentrant {
+        HoldingInfo storage holdingInfo = holdingInfoMap[_holding];
         OfferInfo storage preOfferInfo = offerInfoMap[_offer];
 
-        if (stockInfo.authority != msg.sender) {
+        if (holdingInfo.authority != msg.sender) {
             revert Errors.Unauthorized();
         }
 
-        if (stockInfo.preOffer != _offer) {
-            revert InvalidOfferAccount(stockInfo.preOffer, _offer);
+        if (holdingInfo.preOffer != _offer) {
+            revert InvalidOfferAccount(holdingInfo.preOffer, _offer);
         }
 
-        if (stockInfo.stockStatus != StockStatus.Initialized) {
-            revert InvalidStockStatus(
-                StockStatus.Initialized,
-                stockInfo.stockStatus
+        if (holdingInfo.holdingStatus != HoldingStatus.Initialized) {
+            revert InvalidHoldingStatus(
+                HoldingStatus.Initialized,
+                holdingInfo.holdingStatus
             );
         }
 
@@ -689,16 +706,16 @@ contract PreMarktes is
             );
         }
 
-        uint256 depositAmount = stockInfo.points.mulDiv(
-            preOfferInfo.points,
-            preOfferInfo.amount,
+        uint256 quoteTokenAmount = holdingInfo.projectPoints.mulDiv(
+            preOfferInfo.quoteTokenAmount,
+            preOfferInfo.projectPoints,
             Math.Rounding.Down
         );
 
-        uint256 transferAmount = OfferLibraries.getDepositAmount(
+        uint256 collateralAmount = OfferLibraries.getDepositCollateralAmount(
             preOfferInfo.offerType,
             preOfferInfo.collateralRate,
-            depositAmount,
+            quoteTokenAmount,
             false,
             Math.Rounding.Down
         );
@@ -706,22 +723,25 @@ contract PreMarktes is
         MakerInfo storage makerInfo = makerInfoMap[preOfferInfo.maker];
         ITokenManager tokenManager = tadleFactory.getTokenManager();
         tokenManager.addTokenBalance(
-            TokenBalanceType.MakerRefund,
+            TokenBalanceType.RemainingCash,
             msg.sender,
-            makerInfo.tokenAddress,
-            transferAmount
+            makerInfo.collateralTokenAddr,
+            collateralAmount
         );
 
-        stockInfo.stockStatus = StockStatus.Finished;
+        holdingInfo.holdingStatus = HoldingStatus.Finished;
 
-        emit AbortBidTaker(_offer, msg.sender);
+        emit AbortBidHolding(_offer, _holding, msg.sender);
     }
 
     /**
      * @notice rollin
      * @dev set rollin timestamp
      */
-    function rollin() external {
+    function rollin() external whenNotPaused {
+        if (rollinAtMap[msg.sender] + 1 hours > block.timestamp) {
+            revert Errors.RollinTooSoon(rollinAtMap[msg.sender]);
+        }
         rollinAtMap[msg.sender] = block.timestamp;
         emit Rollin(msg.sender, block.timestamp);
     }
@@ -729,8 +749,8 @@ contract PreMarktes is
     /**
      * @dev Update offer status
      * @notice Only called by DeliveryPlace
-     * @param _offer offer address
-     * @param _status new status
+     * @param _offer Offer address
+     * @param _status New status
      */
     function updateOfferStatus(
         address _offer,
@@ -743,76 +763,85 @@ contract PreMarktes is
     }
 
     /**
-     * @dev Update stock status
+     * @dev Update holding status
      * @notice Only called by DeliveryPlace
-     * @param _stock stock address
-     * @param _status new status
+     * @param _holding Holding address
+     * @param _status New status
      */
-    function updateStockStatus(
-        address _stock,
-        StockStatus _status
+    function updateHoldingStatus(
+        address _holding,
+        HoldingStatus _status
     ) external onlyDeliveryPlace(tadleFactory, msg.sender) {
-        StockInfo storage stockInfo = stockInfoMap[_stock];
-        stockInfo.stockStatus = _status;
+        HoldingInfo storage holdingInfo = holdingInfoMap[_holding];
+        holdingInfo.holdingStatus = _status;
 
-        emit StockStatusUpdated(_stock, _status);
+        emit HoldingStatusUpdated(_holding, _status);
     }
 
     /**
      * @dev Settled ask offer
      * @notice Only called by DeliveryPlace
-     * @param _offer offer address
-     * @param _settledPoints settled points
-     * @param _settledPointTokenAmount settled point token amount
+     * @param _offer Offer address
+     * @param _settledProjectPoints Settled projectPoints
+     * @param _settledPointTokenAmount Settled point token amount
      */
     function settledAskOffer(
         address _offer,
-        uint256 _settledPoints,
+        uint256 _settledCollateralAmount,
+        uint256 _settledProjectPoints,
         uint256 _settledPointTokenAmount
     ) external onlyDeliveryPlace(tadleFactory, msg.sender) {
         OfferInfo storage offerInfo = offerInfoMap[_offer];
-        offerInfo.settledPoints = _settledPoints;
+        offerInfo.settledCollateralAmount = _settledCollateralAmount;
+        offerInfo.settledProjectPoints = _settledProjectPoints;
         offerInfo.settledPointTokenAmount = _settledPointTokenAmount;
         offerInfo.offerStatus = OfferStatus.Settled;
 
-        emit SettledAskOffer(_offer, _settledPoints, _settledPointTokenAmount);
+        emit SettledAskOffer(
+            _offer,
+            _settledCollateralAmount,
+            _settledProjectPoints,
+            _settledPointTokenAmount
+        );
     }
 
     /**
-     * @dev Settle ask taker
+     * @dev Settle ask holding
      * @notice Only called by DeliveryPlace
-     * @param _offer offer address
-     * @param _stock stock address
-     * @param _settledPoints settled points
-     * @param _settledPointTokenAmount settled point token amount
+     * @param _offer Offer address
+     * @param _holding Holding address
+     * @param _settledProjectPoints Settled projectPoints
+     * @param _settledPointTokenAmount Settled point token amount
      */
-    function settleAskTaker(
+    function settleAskHolding(
         address _offer,
-        address _stock,
-        uint256 _settledPoints,
+        address _holding,
+        uint256 _settledProjectPoints,
         uint256 _settledPointTokenAmount
     ) external onlyDeliveryPlace(tadleFactory, msg.sender) {
-        StockInfo storage stockInfo = stockInfoMap[_stock];
+        HoldingInfo storage holdingInfo = holdingInfoMap[_holding];
         OfferInfo storage offerInfo = offerInfoMap[_offer];
 
-        offerInfo.settledPoints = offerInfo.settledPoints + _settledPoints;
+        offerInfo.settledProjectPoints =
+            offerInfo.settledProjectPoints +
+            _settledProjectPoints;
         offerInfo.settledPointTokenAmount =
             offerInfo.settledPointTokenAmount +
             _settledPointTokenAmount;
 
-        stockInfo.stockStatus = StockStatus.Finished;
+        holdingInfo.holdingStatus = HoldingStatus.Finished;
 
-        emit SettledBidTaker(
+        emit SettledBidHolding(
             _offer,
-            _stock,
-            _settledPoints,
+            _holding,
+            _settledProjectPoints,
             _settledPointTokenAmount
         );
     }
 
     /**
      * @dev Get offer info by offer address
-     * @param _offer offer address
+     * @param _offer Offer address
      */
     function getOfferInfo(
         address _offer
@@ -821,18 +850,18 @@ contract PreMarktes is
     }
 
     /**
-     * @dev Get stock info by stock address
-     * @param _stock stock address
+     * @dev Get holding info by holding address
+     * @param _holding Holding address
      */
-    function getStockInfo(
-        address _stock
-    ) external view returns (StockInfo memory _stockInfo) {
-        return stockInfoMap[_stock];
+    function getHoldingInfo(
+        address _holding
+    ) external view returns (HoldingInfo memory _holdingInfo) {
+        return holdingInfoMap[_holding];
     }
 
     /**
      * @dev Get maker info by maker address
-     * @param _maker maker address
+     * @param _maker Maker address
      */
     function getMakerInfo(
         address _maker
@@ -840,36 +869,36 @@ contract PreMarktes is
         return makerInfoMap[_maker];
     }
 
-    function _depositTokenWhenCreateTaker(
+    function _depositTokenWhenCreateHolding(
         uint256 platformFee,
-        uint256 depositAmount,
+        uint256 quoteTokenAmount,
         uint256 tradeTax,
         MakerInfo storage makerInfo,
         OfferInfo storage offerInfo,
         ITokenManager tokenManager
     ) internal {
-        uint256 transferAmount = OfferLibraries.getDepositAmount(
+        uint256 collateralAmount = OfferLibraries.getDepositCollateralAmount(
             offerInfo.offerType,
             offerInfo.collateralRate,
-            depositAmount,
+            quoteTokenAmount,
             false,
             Math.Rounding.Up
         );
 
-        transferAmount = transferAmount + platformFee + tradeTax;
+        collateralAmount = collateralAmount + platformFee + tradeTax;
 
-        tokenManager.tillIn{value: msg.value}(
+        tokenManager.deposit{value: msg.value}(
             msg.sender,
-            makerInfo.tokenAddress,
-            transferAmount,
+            makerInfo.collateralTokenAddr,
+            collateralAmount,
             false
         );
     }
 
     function _updateReferralBonus(
         uint256 platformFee,
-        uint256 depositAmount,
-        address stockAddr,
+        uint256 quoteTokenAmount,
+        address holdingAddr,
         MakerInfo storage makerInfo,
         ReferralInfo memory referralInfo,
         ITokenManager tokenManager
@@ -878,12 +907,12 @@ contract PreMarktes is
             remainingPlatformFee = platformFee;
         } else {
             /**
-             * @dev calculate referrer referral bonus and authority referral bonus
-             * @dev calculate remaining platform fee
-             * @dev remaining platform fee = platform fee - referrer referral bonus - authority referral bonus
-             * @dev referrer referral bonus = platform fee * referrer rate
-             * @dev authority referral bonus = platform fee * authority rate
-             * @dev emit ReferralBonus
+             * @dev Calculate referrer's `referral bonus` and authority's `referral bonus`
+             * @dev Calculate remaining platform fee
+             * @dev Remaining platform fee = platform fee - referrer's `referral bonus` - authority's `referral bonus`
+             * @dev Referrer referral bonus = platform fee * referrer rate
+             * @dev Authority referral bonus = platform fee * authority rate
+             * @dev Emit ReferralBonus
              */
             uint256 referrerReferralBonus = platformFee.mulDiv(
                 referralInfo.referrerRate,
@@ -892,18 +921,18 @@ contract PreMarktes is
             );
 
             /**
-             * @dev update referrer referral bonus
-             * @dev update authority referral bonus
+             * @dev Update referrer referral bonus
+             * @dev Update authority referral bonus
              */
             tokenManager.addTokenBalance(
                 TokenBalanceType.ReferralBonus,
                 referralInfo.referrer,
-                makerInfo.tokenAddress,
+                makerInfo.collateralTokenAddr,
                 referrerReferralBonus
             );
 
             uint256 authorityReferralBonus = platformFee.mulDiv(
-                referralInfo.authorityRate,
+                referralInfo.refereeRate,
                 Constants.REFERRAL_RATE_DECIMAL_SCALER,
                 Math.Rounding.Down
             );
@@ -911,7 +940,7 @@ contract PreMarktes is
             tokenManager.addTokenBalance(
                 TokenBalanceType.ReferralBonus,
                 msg.sender,
-                makerInfo.tokenAddress,
+                makerInfo.collateralTokenAddr,
                 authorityReferralBonus
             );
 
@@ -920,23 +949,24 @@ contract PreMarktes is
                 referrerReferralBonus -
                 authorityReferralBonus;
 
-            /// @dev emit ReferralBonus
+            /// @dev Emit ReferralBonus
             emit ReferralBonus(
-                stockAddr,
+                holdingAddr,
                 msg.sender,
                 referralInfo.referrer,
                 authorityReferralBonus,
                 referrerReferralBonus,
-                depositAmount,
+                quoteTokenAmount,
                 platformFee
             );
         }
     }
 
-    function _updateTokenBalanceWhenCreateTaker(
+    function _updateTokenBalanceWhenCreateHolding(
         address _offer,
         uint256 _tradeTax,
         uint256 _depositAmount,
+        uint256 _remainingPlatformFee,
         OfferInfo storage offerInfo,
         MakerInfo storage makerInfo,
         ITokenManager tokenManager
@@ -948,32 +978,42 @@ contract PreMarktes is
             tokenManager.addTokenBalance(
                 TokenBalanceType.TaxIncome,
                 offerInfo.authority,
-                makerInfo.tokenAddress,
+                makerInfo.collateralTokenAddr,
                 _tradeTax
             );
+            offerInfo.tradeTax += _tradeTax;
         } else {
             tokenManager.addTokenBalance(
                 TokenBalanceType.TaxIncome,
                 makerInfo.authority,
-                makerInfo.tokenAddress,
+                makerInfo.collateralTokenAddr,
                 _tradeTax
             );
+
+            offerInfoMap[makerInfo.originOffer].tradeTax += _tradeTax;
         }
 
-        /// @dev update sales revenue
+        /// @dev Update sales revenue
         if (offerInfo.offerType == OfferType.Ask) {
             tokenManager.addTokenBalance(
                 TokenBalanceType.SalesRevenue,
                 offerInfo.authority,
-                makerInfo.tokenAddress,
+                makerInfo.collateralTokenAddr,
                 _depositAmount
             );
         } else {
             tokenManager.addTokenBalance(
                 TokenBalanceType.SalesRevenue,
                 msg.sender,
-                makerInfo.tokenAddress,
+                makerInfo.collateralTokenAddr,
                 _depositAmount
+            );
+        }
+
+        if (_remainingPlatformFee > 0) {
+            tokenManager.updatePlatformFee(
+                makerInfo.collateralTokenAddr,
+                _remainingPlatformFee
             );
         }
     }

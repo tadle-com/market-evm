@@ -20,7 +20,7 @@
 ```
 Tadle is a cutting-edge pre-market infrastructure designed to unlock illiquid assets in the crypto pre-market.
 
-Our first product, the Points Marketplace, empowers projects to unlock the liquidity and value of points systems before conducting the Token Generation Event (TGE). By facilitating seamless trading and providing a secure, trustless environment, Tadle ensures that your community can engage with your tokens and points dynamically and efficiently.
+Our first product, the Points Marketplace, empowers projects to unlock the liquidity and value of projectPoints systems before conducting the Token Generation Event (TGE). By facilitating seamless trading and providing a secure, trustless environment, Tadle ensures that your community can engage with your tokens and projectPoints dynamically and efficiently.
 
 [Documentation](https://tadle.gitbook.io/tadle)
 [Website](https://tadle.com)
@@ -37,9 +37,9 @@ Maker
 - Cancel your offer
 - Abort your offer
 
-Taker
-- Place taker orders
-- Relist stocks as new offers
+Holding
+- Place holding orders
+- Relist holdings as new offers
 
 Sell Offer Maker
 - Deliver tokens during settlement
@@ -78,17 +78,17 @@ src
 ├── interfaces
 │   ├── ICapitalPool.sol
 │   ├── IDeliveryPlace.sol
-│   ├── IPerMarkets.sol
+│   ├── IPreMarkets.sol
 │   ├── ISystemConfig.sol
 │   └── ITokenManager.sol
 ├── libraries
-│   ├── MarketPlaceLibraries.sol
+│   ├── MarketplaceLibraries.sol
 │   └── OfferLibraries.sol
 └── storage
     ├── CapitalPoolStorage.sol
     ├── DeliveryPlaceStorage.sol
     ├── OfferStatus.sol
-    ├── PerMarketsStorage.sol
+    ├── PreMarketsStorage.sol
     ├── SystemConfigStorage.sol
     └── TokenManagerStorage.sol
 ```
@@ -113,7 +113,7 @@ Compatibilities:
 Prerequisites:
 
 ```bash
-forge install OpenZeppelin/openzeppelin-contracts
+forge install OpenZeppelin/openzeppelin-contracts@v4.9.6 --no-commit
 ```
 
 Build:

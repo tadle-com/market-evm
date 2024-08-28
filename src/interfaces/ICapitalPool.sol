@@ -8,10 +8,13 @@ pragma solidity 0.8.19;
 interface ICapitalPool {
     /**
      * @dev Approve token for token manager
-     * @notice only can be called by token manager
-     * @param tokenAddr address of token
+     * @notice Only can be called by token manager
      */
-    function approve(address tokenAddr) external;
+    function approve(
+        address tokenAddr,
+        uint256 _allowance,
+        uint256 _value
+    ) external;
 
     /// @dev Error when approve failed
     error ApproveFailed();

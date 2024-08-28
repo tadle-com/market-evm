@@ -4,13 +4,13 @@ pragma solidity 0.8.19;
 /**
  * @dev Offer status
  * @notice Unknown, Virgin, Ongoing, Canceled, Filled, Settling, Settled
- * @param Unknown offer not yet exist.
- * @param Virgin offer has been listed, but not one trade.
- * @param Ongoing offer has been listed, and already one trade.
- * @param Canceled offer has been canceled.
- * @param Filled offer has been filled.
- * @param Settling offer is settling.
- * @param Settled offer has been settled, the last status.
+ * @param Unknown The offer does not exist.
+ * @param Virgin The offer already listed, but no one's buying it.
+ * @param Ongoing The offer already listed, and at least one person is buying it.
+ * @param Canceled The offer has been canceled.
+ * @param Filled The offer has been filled.
+ * @param Settling The offer is being settled.
+ * @param Settled The offer has been settled.
  */
 enum OfferStatus {
     Unknown,
@@ -24,9 +24,8 @@ enum OfferStatus {
 
 /**
  * @dev Offer type
- * @notice Ask, Bid
- * @param Ask create offer to sell points
- * @param Bid create offer to buy points
+ * @param Ask Create offer to sell projectPoints
+ * @param Bid Create offer to buy projectPoints
  */
 enum OfferType {
     Ask,
@@ -34,24 +33,23 @@ enum OfferType {
 }
 
 /**
- * @dev Stock type
+ * @dev Holding type
  * @notice Ask, Bid
- * @param Ask create order to sell points
- * @param Bid create order to buy points
+ * @param Ask Create holding to sell projectPoints
+ * @param Bid Create holding to buy projectPoints
  */
-enum StockType {
+enum HoldingType {
     Ask,
     Bid
 }
 
 /**
- * @dev Stock status
- * @notice Unknown, Initialized, Finished
- * @param Unknown order not yet exist.
- * @param Initialized order already exist
- * @param Finished order already finished
+ * @dev Holding status
+ * @param Unknown The holding does not exist.
+ * @param Initialized The holding already exist.
+ * @param Finished The holding already settled.
  */
-enum StockStatus {
+enum HoldingStatus {
     Unknown,
     Initialized,
     Finished
@@ -59,9 +57,8 @@ enum StockStatus {
 
 /**
  * @dev Offer settle type
- * @notice Protected, Turbo
- * @param Protected offer type is protected
- * @param Turbo offer type is turbo
+ * @param Protected The offer type is protected. the holding taked by this offer need collateral to list.
+ * @param Turbo The offer type is turbo
  */
 enum OfferSettleType {
     Protected,
@@ -70,13 +67,12 @@ enum OfferSettleType {
 
 /**
  * @dev Abort offer status
- * @notice Initialized, SubOfferListed, Aborted
- * @param Initialized offer not yet exist.
- * @param SubOfferListed some one trade, and relist the offer
- * @param Aborted order has been aborted
+ * @param Initialized The offer not exist.
+ * @param AllocationPropagated Some one take the offer, and relist the holding.
+ * @param Aborted The offer has been aborted
  */
 enum AbortOfferStatus {
     Initialized,
-    SubOfferListed,
+    AllocationPropagated,
     Aborted
 }

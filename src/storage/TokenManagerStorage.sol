@@ -20,7 +20,10 @@ contract TokenManagerStorage is UpgradeableStorage {
         public userTokenBalanceMap;
 
     /// @dev token white list
-    mapping(address => bool) public tokenWhiteListed;
+    mapping(address => bool) public tokenWhitelisted;
+
+    /// @dev platform fee
+    mapping(address => uint256) public platformFeeMap;
 
     /// @dev empty reserved space is put in place to allow future versions to add new
     /// variables without shifting down storage in the inheritance chain.

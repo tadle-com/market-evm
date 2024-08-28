@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import {UpgradeableStorage} from "./UpgradeableStorage.sol";
-import {ReferralInfo, MarketPlaceInfo} from "../interfaces/ISystemConfig.sol";
+import {ReferralInfo, MarketplaceInfo} from "../interfaces/ISystemConfig.sol";
 
 /**
  * @title SystemConfigStorage
@@ -34,8 +34,8 @@ contract SystemConfigStorage is UpgradeableStorage {
     /// @dev user refferral info, detail see ReferralInfo.
     mapping(address => ReferralInfo) public referralInfoMap;
 
-    /// @dev marketPlace info, detail see MarketPlaceInfo.
-    mapping(address => MarketPlaceInfo) public marketPlaceInfoMap;
+    /// @dev marketPlace info, detail see MarketplaceInfo.
+    mapping(address => MarketplaceInfo) public marketPlaceInfoMap;
 
     /// @dev empty reserved space is put in place to allow future versions to add new
     /// variables without shifting down storage in the inheritance chain.

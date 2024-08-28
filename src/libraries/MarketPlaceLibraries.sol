@@ -1,29 +1,27 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.19;
 
-import {MarketPlaceInfo, MarketPlaceStatus} from "../interfaces/ISystemConfig.sol";
+import {MarketplaceInfo, MarketplaceStatus} from "../interfaces/ISystemConfig.sol";
 import {Errors} from "../utils/Errors.sol";
 
 /**
- * @title MarketPlaceLibraries
+ * @title MarketplaceLibraries
  * @dev Library of market place
  * @dev Get status of market place
  * @dev Check status of market place
  */
-library MarketPlaceLibraries {
+library MarketplaceLibraries {
     /**
      * @dev Get status of market place
-     * @param _blockTimestamp block timestamp
-     * @param _marketPlaceInfo market place info
-     * @dev block timestamp is larger than tge + settlementPeriod, return BidSettling
-     * @dev block timestamp is larger than tge, return AskSettling
+     * @dev block timestamp is larger than tge + settlementPeriod, return `BidSettling`
+     * @dev block timestamp is larger than tge, return `AskSettling`
      */
-    function getMarketPlaceStatus(
+    function getMarketplaceStatus(
         uint256 _blockTimestamp,
-        MarketPlaceInfo memory _marketPlaceInfo
-    ) internal pure returns (MarketPlaceStatus) {
-        if (_marketPlaceInfo.status == MarketPlaceStatus.Offline) {
-            return MarketPlaceStatus.Offline;
+        MarketplaceInfo memory _marketPlaceInfo
+    ) internal pure returns (MarketplaceStatus) {
+        if (_marketPlaceInfo.status == MarketplaceStatus.Offline) {
+            return MarketplaceStatus.Offline;
         }
 
         /// @dev settle not active
@@ -35,11 +33,11 @@ library MarketPlaceLibraries {
             _blockTimestamp >
             _marketPlaceInfo.tge + _marketPlaceInfo.settlementPeriod
         ) {
-            return MarketPlaceStatus.BidSettling;
+            return MarketplaceStatus.BidSettling;
         }
 
         if (_blockTimestamp > _marketPlaceInfo.tge) {
-            return MarketPlaceStatus.AskSettling;
+            return MarketplaceStatus.AskSettling;
         }
 
         return _marketPlaceInfo.status;
@@ -47,23 +45,20 @@ library MarketPlaceLibraries {
 
     /**
      * @dev Check status of market place
-     * @param _blockTimestamp block timestamp
-     * @param _marketPlaceInfo market place info
-     * @param _status status
-     * @dev true if market status == _status
+     * @dev true if marketStatus == `_status`
      */
-    function checkMarketPlaceStatus(
-        MarketPlaceInfo memory _marketPlaceInfo,
+    function checkMarketplaceStatus(
+        MarketplaceInfo memory _marketPlaceInfo,
         uint256 _blockTimestamp,
-        MarketPlaceStatus _status
+        MarketplaceStatus _status
     ) internal pure {
-        MarketPlaceStatus status = getMarketPlaceStatus(
+        MarketplaceStatus status = getMarketplaceStatus(
             _blockTimestamp,
             _marketPlaceInfo
         );
 
         if (status != _status) {
-            revert Errors.MismatchedMarketPlaceStatus();
+            revert Errors.MismatchedMarketplaceStatus();
         }
     }
 }

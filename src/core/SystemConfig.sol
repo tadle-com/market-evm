@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import {SystemConfigStorage} from "../storage/SystemConfigStorage.sol";
-import {ISystemConfig, ReferralInfo, MarketPlaceInfo, MarketPlaceStatus} from "../interfaces/ISystemConfig.sol";
+import {ISystemConfig, ReferralInfo, MarketplaceInfo, MarketplaceStatus} from "../interfaces/ISystemConfig.sol";
 import {Constants} from "../libraries/Constants.sol";
 import {GenerateAddress} from "../libraries/GenerateAddress.sol";
 import {Rescuable} from "../utils/Rescuable.sol";
@@ -18,7 +18,7 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
 
     /**
      * @notice Set base platform fee rate and base referral rate
-     * @dev Caller must be owner
+     * @dev Caller must be mamanger
      * @param _basePlatformFeeRate Base platform fee rate, default is 0.5%
      * @param _baseReferralRate Base referral rate, default is 30%
      */
@@ -36,13 +36,13 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
      * @notice Create referral code
      * @param _referralCode Referral code
      * @param _referrerRate Referrer rate
-     * @param _authorityRate Authority rate
-     * @notice _referrerRate + _authorityRate = baseReferralRate + referralExtraRate
+     * @param _refereeRate Authority rate
+     * @notice `_referrerRate` + `_refereeRate` = `baseReferralRate` + `referralExtraRate`
      */
     function createReferralCode(
         string calldata _referralCode,
         uint256 _referrerRate,
-        uint256 _authorityRate
+        uint256 _refereeRate
     ) external whenNotPaused {
         if (_referrerRate < baseReferralRate) {
             revert InvalidReferrerRate(_referrerRate);
@@ -55,8 +55,8 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
             revert InvalidTotalRate(totalRate);
         }
 
-        if (_referrerRate + _authorityRate != totalRate) {
-            revert InvalidRate(_referrerRate, _authorityRate, totalRate);
+        if (_referrerRate + _refereeRate != totalRate) {
+            revert InvalidRate(_referrerRate, _refereeRate, totalRate);
         }
 
         bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
@@ -67,23 +67,25 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
         referralCodeMap[referralCodeId] = ReferralInfo(
             msg.sender,
             _referrerRate,
-            _authorityRate
+            _refereeRate
         );
 
         emit CreateReferralCode(
             msg.sender,
             _referralCode,
             _referrerRate,
-            _authorityRate
+            _refereeRate
         );
     }
 
     /**
      * @notice Remove referral code
      * @param _referralCode Referral code
-     * @notice _referrer == msg.sender
+     * @notice `_referrer` == `msg.sender`
      */
-    function removeReferralCode(string calldata _referralCode) external {
+    function removeReferralCode(
+        string calldata _referralCode
+    ) external whenNotPaused {
         bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
 
         if (referralCodeMap[referralCodeId].referrer != msg.sender) {
@@ -98,9 +100,11 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
     /**
      * @notice Update referrer setting
      * @param _referralCode Referral code
-     * @notice _referrer != msg.sender
+     * @notice `_referrer` != `msg.sender`
      */
-    function updateReferrerInfo(string calldata _referralCode) external {
+    function updateReferrerInfo(
+        string calldata _referralCode
+    ) external whenNotPaused {
         bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
 
         ReferralInfo storage referralInfo = referralCodeMap[referralCodeId];
@@ -119,75 +123,75 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
             msg.sender,
             referralInfo.referrer,
             referralInfo.referrerRate,
-            referralInfo.authorityRate
+            referralInfo.refereeRate
         );
     }
 
     /**
-     * @notice Create market place
-     * @param _marketPlaceName Market place name
-     * @param _fixedratio Fixed ratio
-     * @notice Caller must be owner
-     * @notice _marketPlaceName must be unique
-     * @notice _fixedratio is true if the market place is arbitration required
+     * @notice Create a new marketplace
+     * @param _marketPlaceName Market name
+     * @notice Caller must be manager
+     * @notice The market must be unique
+     * @notice If the offer is subject to arbitration, the fixedratio is `false`, and vice versa `true`
      */
-    function createMarketPlace(
-        string calldata _marketPlaceName,
-        bool _fixedratio
+    function createMarketplace(
+        string calldata _marketPlaceName
     ) external onlyOwner {
-        address marketPlace = GenerateAddress.generateMarketPlaceAddress(
+        address marketPlace = GenerateAddress.generateMarketplaceAddress(
             _marketPlaceName
         );
-        MarketPlaceInfo storage marketPlaceInfo = marketPlaceInfoMap[
+        MarketplaceInfo storage marketPlaceInfo = marketPlaceInfoMap[
             marketPlace
         ];
 
-        if (marketPlaceInfo.status != MarketPlaceStatus.UnInitialized) {
-            revert MarketPlaceAlreadyInitialized();
+        if (marketPlaceInfo.status != MarketplaceStatus.UnInitialized) {
+            revert MarketplaceAlreadyInitialized();
         }
 
-        marketPlaceInfo.status = MarketPlaceStatus.Online;
-        marketPlaceInfo.fixedratio = _fixedratio;
-
-        emit CreateMarketPlaceInfo(marketPlace, _fixedratio, _marketPlaceName);
+        marketPlaceInfo.status = MarketplaceStatus.Online;
+        emit CreateMarketplaceInfo(marketPlace, _marketPlaceName);
     }
 
     /**
      * @notice Update market when settlement time is passed
      * @param _marketPlaceName Market place name
-     * @param _tokenAddress Token address
+     * @param _projectTokenAddr Token address
+     * @param _isSpecial The market is a unfixed-rate market
      * @param _tokenPerPoint Token per point
-     * @param _tge TGE
+     * @param _tge TGE (Token Generation Event)
      * @param _settlementPeriod Settlement period
-     * @notice Caller must be owner
+     * @notice Caller must be manager
      */
     function updateMarket(
         string calldata _marketPlaceName,
-        address _tokenAddress,
+        address _projectTokenAddr,
+        bool _isSpecial,
         uint256 _tokenPerPoint,
         uint256 _tge,
         uint256 _settlementPeriod
     ) external onlyOwner {
-        address marketPlace = GenerateAddress.generateMarketPlaceAddress(
+        address marketPlace = GenerateAddress.generateMarketplaceAddress(
             _marketPlaceName
         );
 
-        MarketPlaceInfo storage marketPlaceInfo = marketPlaceInfoMap[
+        MarketplaceInfo storage marketPlaceInfo = marketPlaceInfoMap[
             marketPlace
         ];
 
-        if (marketPlaceInfo.status != MarketPlaceStatus.Online) {
-            revert MarketPlaceNotOnline(marketPlaceInfo.status);
+        if (marketPlaceInfo.status != MarketplaceStatus.Online) {
+            revert MarketplaceNotOnline(marketPlaceInfo.status);
         }
 
-        marketPlaceInfo.tokenAddress = _tokenAddress;
+        marketPlaceInfo.projectTokenAddr = _projectTokenAddr;
+        marketPlaceInfo.isSpecial = _isSpecial;
         marketPlaceInfo.tokenPerPoint = _tokenPerPoint;
         marketPlaceInfo.tge = _tge;
         marketPlaceInfo.settlementPeriod = _settlementPeriod;
 
         emit UpdateMarket(
             marketPlace,
-            _tokenAddress,
+            _projectTokenAddr,
+            _isSpecial,
             _marketPlaceName,
             _tokenPerPoint,
             _tge,
@@ -199,28 +203,28 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
      * @notice Update market place status
      * @param _marketPlaceName Market place name
      * @param _status Market place status
-     * @notice Caller must be owner
+     * @notice Caller must be manager
      */
-    function updateMarketPlaceStatus(
+    function updateMarketplaceStatus(
         string calldata _marketPlaceName,
-        MarketPlaceStatus _status
+        MarketplaceStatus _status
     ) external onlyOwner {
-        address marketPlace = GenerateAddress.generateMarketPlaceAddress(
+        address marketPlace = GenerateAddress.generateMarketplaceAddress(
             _marketPlaceName
         );
-        MarketPlaceInfo storage marketPlaceInfo = marketPlaceInfoMap[
+        MarketplaceInfo storage marketPlaceInfo = marketPlaceInfoMap[
             marketPlace
         ];
         marketPlaceInfo.status = _status;
 
-        emit UpdateMarketPlaceStatus(marketPlace, _status);
+        emit UpdateMarketplaceStatus(marketPlace, _status);
     }
 
     /**
      * @notice Update base platform fee rate
      * @param _accountAddress Account address
      * @param _platformFeeRate Platform fee rate of user
-     * @notice Caller must be owner
+     * @notice Caller must be manager
      */
     function updateUserPlatformFeeRate(
         address _accountAddress,
@@ -239,8 +243,8 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
      * @notice Update referrer extra rate
      * @param _referrer Referrer address
      * @param _extraRate Extra rate
-     * @notice Caller must be owner
-     * @notice _extraRate + baseReferralRate <= REFERRAL_RATE_DECIMAL_SCALER
+     * @notice Caller must be manager
+     * @notice `_extraRate` + `baseReferralRate` <= REFERRAL_RATE_DECIMAL_SCALER
      */
     function updateReferralExtraRateMap(
         address _referrer,
@@ -261,7 +265,6 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
 
     /**
      * @dev Get base platform fee rate.
-     * @param _user address of user, create order by this user.
      */
     function getPlatformFeeRate(address _user) external view returns (uint256) {
         if (userPlatformFeeRate[_user] == 0) {
@@ -278,10 +281,10 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
         return referralInfoMap[_referrer];
     }
 
-    /// @dev Get marketPlace info by marketPlace
-    function getMarketPlaceInfo(
+    /// @dev Get `marketPlaceInfo` by marketPlace
+    function getMarketplaceInfo(
         address _marketPlace
-    ) external view returns (MarketPlaceInfo memory) {
+    ) external view returns (MarketplaceInfo memory) {
         return marketPlaceInfoMap[_marketPlace];
     }
 }

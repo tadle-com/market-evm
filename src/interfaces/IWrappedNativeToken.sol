@@ -14,8 +14,8 @@ interface IWrappedNativeToken {
 
     /**
      * @dev Withdraw WrappedNativeToken
-     * @dev transfer WETH to native token
-     * @param wad amount of WETH
+     * @dev Transfer WETH to native token
+     * @param wad Amount of WETH
      */
     function withdraw(uint256 wad) external;
 }

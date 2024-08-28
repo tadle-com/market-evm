@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.19;
 
-// Upgradeable proxy contract used in OZ upgrades plugin
-// @notice the version of OZ contracts is `5.0.2`
-// @notice the first storage slot is used as admin
+// Upgradeable Proxy contract used in OZ upgrades plugin
+// @notice The version of OZ contracts is `4.9.0`
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
 import {ITadleFactory} from "../factory/ITadleFactory.sol";
@@ -13,17 +12,16 @@ import {Errors} from "../utils/Errors.sol";
  * @title UpgradeableProxy
  * @notice This contrct is based on TransparentUpgradeableProxy.
  * @dev This contrct serves as the proxy of SystemConfig, PreMarkets, DeliveryPlace, CapitalPool and TokenManager.
- * @notice the first storage slot is used as admin.
- * @notice the second storage slot is used as tadle factory.
+ * @notice The first storage slot is used as tadle factory.
  * @notice Total Storage Gaps: 50, UnUsed Storage Slots: 49.
  */
 contract UpgradeableProxy is TransparentUpgradeableProxy {
     ITadleFactory public tadleFactory;
 
     /**
-     * @param _logic address of logic contract
-     * @param _admin address of admin
-     * @param _data call data for logic
+     * @param _logic Address of logic contract
+     * @param _admin Address of admin, who can upgrade proxy
+     * @param _data Call data for logic
      */
     constructor(
         address _logic,

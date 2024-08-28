@@ -4,7 +4,6 @@ pragma solidity 0.8.19;
 /**
  * @title ISystemConfig
  * @dev Interface of system config
- * @notice Add new system config here
  */
 interface ISystemConfig {
     /// @dev Get base platform fee rate.
@@ -12,19 +11,18 @@ interface ISystemConfig {
 
     /**
      * @dev Get base platform fee rate.
-     * @param _user address of user, create order by this user.
      */
     function getPlatformFeeRate(address _user) external view returns (uint256);
 
-    /// @dev Get referral info by referrer
+    /// @dev Get `ReferralInfo` by referrer
     function getReferralInfo(
         address _referrer
     ) external view returns (ReferralInfo calldata);
 
-    /// @dev Get marketPlace info by marketPlace
-    function getMarketPlaceInfo(
+    /// @dev Get `MarketplaceInfo` by marketPlace
+    function getMarketplaceInfo(
         address _marketPlace
-    ) external view returns (MarketPlaceInfo calldata);
+    ) external view returns (MarketplaceInfo calldata);
 
     /// @dev Emit events when initialize
     event Initialize(uint256 _basePlatformFeeRate, uint256 _baseReferralRate);
@@ -34,16 +32,16 @@ interface ISystemConfig {
         address indexed referrer,
         string code,
         uint256 _referrerRate,
-        uint256 _authorityRate
+        uint256 _refereeRate
     );
 
     /// @dev Emit events when remove referral code
     event RemoveReferralCode(address indexed referrer, string code);
 
     /// @dev Emit events when update marketPlace status
-    event UpdateMarketPlaceStatus(
+    event UpdateMarketplaceStatus(
         address indexed marketPlaceAddress,
-        MarketPlaceStatus status
+        MarketplaceStatus status
     );
 
     /// @dev Emit events when base platform fee rate is updated
@@ -67,47 +65,47 @@ interface ISystemConfig {
     /// @dev Emit events when user referral extra rate is updated
     event UpdateReferrerExtraRate(
         address indexed authorityAddress,
-        uint256 authorityRate
+        uint256 refereeRate
     );
 
-    /// @dev Emit events when create marketPlace info
-    event CreateMarketPlaceInfo(
+    /// @dev Emit events when create marketPlace
+    event CreateMarketplaceInfo(
         address indexed marketPlaceAddress,
-        bool indexed fixedratio,
         string marketPlaceName
     );
 
-    /// @dev Emit events when update marketPlace info
+    /// @dev Emit events when update marketPlace
     event UpdateMarket(
         address indexed marketPlaceAddress,
         address indexed tokenAddress,
+        bool isSpecial,
         string marketPlaceName,
         uint256 tokenPerPoint,
         uint256 tge,
         uint256 settlementPeriod
     );
 
-    /// @dev Emit events when update referrer info
+    /// @dev Emit events when update `referrerInfo`
     event UpdateReferrerInfo(
         address indexed authorityAddress,
         address indexed referrerAddress,
         uint256 referrerRate,
-        uint256 authorityRate
+        uint256 refereeRate
     );
 
-    /// @dev Emit events when update referrer extra rate
+    /// @dev Emit events when update `referrerExtraRate`
     event UpdateReferralExtraRateMap(
         address indexed referrerAddress,
         uint256 referrerRate
     );
 
-    /// Error when the referrer and the referee cannot be the same person
+    /// Error when invalid referrer
     error InvalidReferrer(address referrer);
 
-    /// Error when invalid referrer rate or authority rate
+    /// Error when invalid `referrerRate` or `refereeRate`
     error InvalidRate(
         uint256 referrerRate,
-        uint256 authorityRate,
+        uint256 refereeRate,
         uint256 totalRate
     );
 
@@ -121,26 +119,25 @@ interface ISystemConfig {
     error InvalidPlatformFeeRate(uint256 platformFeeRate);
 
     /// Error when marketPlace already initialized
-    error MarketPlaceAlreadyInitialized();
+    error MarketplaceAlreadyInitialized();
 
     /// Error when marketPlace is not online
-    error MarketPlaceNotOnline(MarketPlaceStatus status);
+    error MarketplaceNotOnline(MarketplaceStatus status);
 
     /// Error when referrer code exist
     error ReferralCodeExist(string);
 }
 
 /**
- * @title MarketPlaceStatus
- * @dev Enum of MarketPlaceStatus
- * @notice UnInitialized, Online, AskSettling, BidSettling, Offline
+ * @title MarketplaceStatus
+ * @dev Enum of MarketplaceStatus
  * @param UnInitialized is the default value, when marketPlace is not created.
  * @param Online is the value when marketPlace is created and online.
- * @param AskSettling is the value when ask offer or ask order is settled.
- * @param BidSettling is the value when bid offer or bid order is settled.
+ * @param AskSettling is the value when ask offer or ask holding is settled.
+ * @param BidSettling is the value when bid offer or bid holding is settled.
  * @param Offline is the value when marketPlace is offline.
  */
-enum MarketPlaceStatus {
+enum MarketplaceStatus {
     UnInitialized,
     Online,
     AskSettling,
@@ -149,20 +146,19 @@ enum MarketPlaceStatus {
 }
 
 /**
- * @title MarketPlaceInfo
- * @dev Struct of MarketPlaceInfo
- * @notice fixedratio, status, tokenAddress, tokenPerPoint, tge, settlementPeriod
- * @param fixedratio maketPlace is fixedratio type or not
- * @param status marketPlace status, detail see MarketPlaceStatus
- * @param tokenAddress the point token address
- * @param tokenPerPoint token per point
- * @param tge Token Generation Even
- * @param settlementPeriod settlement period
+ * @title MarketplaceInfo
+ * @dev Struct of MarketplaceInfo
+ * @param isSpecial The market is a unfixed-rate market
+ * @param status Marketplace status, detail see MarketplaceStatus
+ * @param projectTokenAddr The point token address
+ * @param tokenPerPoint Token per point
+ * @param tge Token Generation Event
+ * @param settlementPeriod Settlement period
  */
-struct MarketPlaceInfo {
-    bool fixedratio;
-    MarketPlaceStatus status;
-    address tokenAddress;
+struct MarketplaceInfo {
+    bool isSpecial;
+    MarketplaceStatus status;
+    address projectTokenAddr;
     uint256 tokenPerPoint;
     uint256 tge;
     uint256 settlementPeriod;
@@ -170,14 +166,13 @@ struct MarketPlaceInfo {
 
 /**
  * @title ReferralInfo
- * @dev Struct of ReferralInfo
- * @notice referrer, referrerRate, authorityRate
+ * @dev Struct of `ReferralInfo`
  * @param referrer referrer address
  * @param referrerRate referrer rate
- * @param authorityRate authority rate
+ * @param refereeRate authority rate
  */
 struct ReferralInfo {
     address referrer;
     uint256 referrerRate;
-    uint256 authorityRate;
+    uint256 refereeRate;
 }

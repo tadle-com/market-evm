@@ -4,15 +4,15 @@ pragma solidity 0.8.19;
 import {UpgradeableStorage} from "./UpgradeableStorage.sol";
 
 import {OfferStatus} from "./OfferStatus.sol";
-import {OfferInfo, StockInfo, MakerInfo} from "../interfaces/IPerMarkets.sol";
+import {OfferInfo, HoldingInfo, MakerInfo} from "../interfaces/IPreMarkets.sol";
 
 /**
- * @title PerMarketsStorage
+ * @title PreMarketsStorage
  * @notice This contrct serves as the storage of PerMarkets
  * @notice The top 50 storage slots are used for upgradeable storage.
  * @notice The 50th to 150th storage slots are used for PerMarkets.
  */
-contract PerMarketsStorage is UpgradeableStorage {
+contract PreMarketsStorage is UpgradeableStorage {
     /// @dev the last offer id. increment by 1
     /// @notice the storage slot is 50
     uint256 public offerId;
@@ -21,9 +21,9 @@ contract PerMarketsStorage is UpgradeableStorage {
     /// @notice the storage slot is 51
     mapping(address => OfferInfo) public offerInfoMap;
 
-    /// @dev stock account => stock info.
+    /// @dev holding account => holding info.
     /// @notice the storage slot is 52
-    mapping(address => StockInfo) public stockInfoMap;
+    mapping(address => HoldingInfo) public holdingInfoMap;
 
     /// @dev maker account => maker info.
     /// @notice the storage slot is 53

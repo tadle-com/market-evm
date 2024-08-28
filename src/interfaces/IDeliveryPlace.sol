@@ -10,10 +10,6 @@ import {OfferType} from "../storage/OfferStatus.sol";
 interface IDeliveryPlace {
     /**
      * @dev Emit events when close bid offer
-     * @param _marketPlace market place address
-     * @param _maker maker address
-     * @param _offer offer address
-     * @param _authority authority address
      */
     event CloseBidOffer(
         address indexed _marketPlace,
@@ -23,18 +19,12 @@ interface IDeliveryPlace {
     );
 
     /**
-     * @dev Emit events when close bid taker
-     * @param _marketPlace market place address
-     * @param _maker maker address
-     * @param _stock stock address
-     * @param _authority authority address
-     * @param _userCollateralFee user collateral fee
-     * @param _pointTokenAmount point token amount
+     * @dev Emit events when close bid holding
      */
-    event CloseBidTaker(
+    event CloseBidHolding(
         address indexed _marketPlace,
         address indexed _maker,
-        address indexed _stock,
+        address indexed _holding,
         address _authority,
         uint256 _userCollateralFee,
         uint256 _pointTokenAmount
@@ -42,44 +32,29 @@ interface IDeliveryPlace {
 
     /**
      * @dev Emit events when settle ask maker
-     * @param _marketPlace market place address
-     * @param _maker maker address
-     * @param _offer offer address
-     * @param _authority authority address
-     * @param _settledPoints settled points
-     * @param _settledPointTokenAmount settled point token amount
-     * @param _makerRefundAmount maker refund amount
      */
     event SettleAskMaker(
         address indexed _marketPlace,
         address indexed _maker,
         address indexed _offer,
         address _authority,
-        uint256 _settledPoints,
+        uint256 _settledProjectPoints,
         uint256 _settledPointTokenAmount,
         uint256 _makerRefundAmount
     );
 
     /**
-     * @dev Emit events when settle ask taker
-     * @param _marketPlace market place address
-     * @param _maker maker address
-     * @param _stock stock address
-     * @param _preOffer pre offer address
-     * @param _authority authority address
-     * @param _settledPoints settled points
-     * @param _settledPointTokenAmount settled point token amount
-     * @param _collateralFee collateral fee
+     * @dev Emit events when settle ask holding
      */
-    event SettleAskTaker(
+    event SettleAskHolding(
         address indexed _marketPlace,
         address indexed _maker,
-        address indexed _stock,
+        address indexed _holding,
         address _preOffer,
         address _authority,
-        uint256 _settledPoints,
+        uint256 _settledProjectPoints,
         uint256 _settledPointTokenAmount,
-        uint256 _collateralFee
+        uint256 _collateralAmount
     );
 
     /// @dev Error when invalid offer type
@@ -88,24 +63,26 @@ interface IDeliveryPlace {
     /// @dev Error when invalid offer status
     error InvalidOfferStatus();
 
-    /// @dev Error when invalid stock status
-    error InvalidStockStatus();
+    /// @dev Error when invalid holding status
+    error InvalidHoldingStatus();
 
     /// @dev Error when invalid market place status
-    error InvaildMarketPlaceStatus();
+    error InvalidMarketplaceStatus();
 
-    /// @dev Error when invalid stock
-    error InvalidStock();
+    /// @dev Error when invalid holding
+    error InvalidHolding();
 
-    /// @dev Error when invalid stock type
-    error InvalidStockType();
+    /// @dev Error when invalid holding type
+    error InvalidHoldingType();
 
-    /// @dev Error when insufficient remaining points
+    /// @dev Error when insufficient remaining projectPoints
     error InsufficientRemainingPoints();
 
-    /// @dev Error when invalid points
+    /// @dev Error when invalid projectPoints
     error InvalidPoints();
 
-    /// @dev Error when fixed ratio unsupported
-    error FixedRatioUnsupported();
+    /// @dev Error when fixed ratio type mismatch
+    error FixedRatioTypeMismatch(bool _isSpecial);
+
+    error InvalidOfferAccount(address);
 }

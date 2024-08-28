@@ -10,13 +10,13 @@ interface ITokenManager {
      * @dev Till in, token from user to capital pool
      * @param accountAddress user address
      * @param tokenAddress token address
-     * @param amount amount of token
+     * @param tokenAmount amount of token
      * @param isPointToken is point token
      */
-    function tillIn(
+    function deposit(
         address accountAddress,
         address tokenAddress,
-        uint256 amount,
+        uint256 tokenAmount,
         bool isPointToken
     ) external payable;
 
@@ -25,20 +25,29 @@ interface ITokenManager {
      * @param tokenBalanceType token balance type
      * @param accountAddress user address
      * @param tokenAddress token address
-     * @param amount the claimable amount of token
+     * @param tokenAmount the claimable amount of token
      */
     function addTokenBalance(
         TokenBalanceType tokenBalanceType,
         address accountAddress,
         address tokenAddress,
-        uint256 amount
+        uint256 tokenAmount
+    ) external;
+
+    /**
+     * @notice Update platform fee
+     * @dev Caller must be related contracts
+     */
+    function updatePlatformFee(
+        address tokenAddress,
+        uint256 platformFee
     ) external;
 
     /// @dev Emit events when till in
-    event TillIn(
+    event Deposit(
         address indexed accountAddress,
         address indexed tokenAddress,
-        uint256 amount,
+        uint256 tokenAmount,
         bool isPointToken
     );
 
@@ -50,7 +59,7 @@ interface ITokenManager {
         address indexed accountAddress,
         address indexed tokenAddress,
         TokenBalanceType indexed tokenBalanceType,
-        uint256 amount
+        uint256 tokenAmount
     );
 
     /// @dev Emit events when withdraw
@@ -58,28 +67,31 @@ interface ITokenManager {
         address indexed authority,
         address indexed tokenAddress,
         TokenBalanceType indexed tokenBalanceType,
-        uint256 amount
+        uint256 withdrawAmount
     );
 
     /// @dev Emit events when update token white list
-    event UpdateTokenWhiteListed(
+    event UpdateTokenWhitelisted(
         address indexed tokenAddress,
-        bool isWhiteListed
+        bool isWhitelisted
+    );
+
+    /// @dev Emit events when update platform fee
+    event UpdatePlatformFee(address indexed tokenAddress, uint256 platformFee);
+
+    /// @dev Emit events when withdraw platform fee
+    event WithdrawPlatformFee(
+        address indexed tokenAddress,
+        address indexed receiptAddress,
+        uint256 platformFee
     );
 
     /// @dev Error when token is not whitelisted
-    error TokenIsNotWhiteListed(address tokenAddress);
+    error TokenIsNotWhitelisted(address tokenAddress);
 }
 
 /**
- * @notice TokenBalanceType
  * @dev Token balance type
- * @param TaxIncome: tax income
- * @param ReferralBonus: referral bonus
- * @param SalesRevenue: sales revenue
- * @param RemainingCash: remaining cash
- * @param MakerRefund: maker refund
- * @param PointToken: balance of point token
  */
 enum TokenBalanceType {
     TaxIncome,

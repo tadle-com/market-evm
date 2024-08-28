@@ -4,6 +4,7 @@ pragma solidity 0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/security/Pausable.sol";
+import {Errors} from "../utils/Errors.sol";
 
 /**
  * @title Rescuable
@@ -62,6 +63,10 @@ contract Rescuable is Ownable, Pausable {
         address token,
         uint256 amount
     ) external onlyOwner {
+        if (to == address(0x0)) {
+            revert Errors.InvalidReceiptAddress(to);
+        }
+
         if (token == address(0x0)) {
             payable(to).transfer(amount);
         } else {
@@ -73,7 +78,6 @@ contract Rescuable is Ownable, Pausable {
 
     /**
      * @dev Safe transfer.
-     * @param token The token to transfer. If 0, it is ether.
      * @param to The address of the account to transfer to.
      * @param amount The amount to transfer.
      */

@@ -21,7 +21,4 @@ library Constants {
 
     /// @dev Referral rate decimal scaler
     uint256 internal constant REFERRAL_RATE_DECIMAL_SCALER = 1_000_000;
-
-    /// @dev Referral base rate
-    uint256 internal constant REFERRAL_BASE_RATE = 300_000;
 }

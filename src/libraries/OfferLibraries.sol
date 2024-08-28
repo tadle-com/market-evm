@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {OfferType} from "../interfaces/IPerMarkets.sol";
+import {OfferType} from "../interfaces/IPreMarkets.sol";
 import {Constants} from "../libraries/Constants.sol";
 
 /**
@@ -13,18 +13,16 @@ import {Constants} from "../libraries/Constants.sol";
  */
 library OfferLibraries {
     /**
-     * @dev Get deposit amount
-     * @dev if create ask offer, return _amount * _collateralRate;
-     * @dev if create bid offer, return _amount;
-     * @dev if create ask order, return _amount;
-     * @dev if create bid order, return _amount * _collateralRate;
-     * @param _offerType offer type
-     * @param _collateralRate collateral rate
-     * @param _amount amount
-     * @param _isMaker is maker, true if create offer, false if create offer
+     * @dev Get deposit collateral amount
+     * @dev If create ask offer, return _amount * _collateralRate;
+     * @dev If create bid offer, return _amount;
+     * @dev If create ask holding, return _amount;
+     * @dev If create bid holding, return _amount * _collateralRate;
+     * @param _isMaker `_isMaker` is `true` when create offer
+     *                    and `_isMaker` is `false` when create holding
      * @param _rounding rounding
      */
-    function getDepositAmount(
+    function getDepositCollateralAmount(
         OfferType _offerType,
         uint256 _collateralRate,
         uint256 _amount,
@@ -52,35 +50,30 @@ library OfferLibraries {
 
     /**
      * @dev Get refund amount, offer type
-     * @dev if close bid offer, return offer amount - used amount;
-     * @dev if close ask offer, return (offer amount - used amount) * collateralRate;
-     * @param _offerType offer type
-     * @param _amount amount
-     * @param _points points
-     * @param _usedPoints used points
-     * @param _collateralRate collateral rate
+     * @dev If close bid offer, return offer amount - used amount;
+     * @dev If close ask offer, return (offer amount - used amount) * collateralRate;
      */
-    function getRefundAmount(
+    function getRefundCollateralAmount(
         OfferType _offerType,
-        uint256 _amount,
-        uint256 _points,
-        uint256 _usedPoints,
+        uint256 _quoteTokenAmount,
+        uint256 _projectPoints,
+        uint256 _usedProjectPoints,
         uint256 _collateralRate
     ) internal pure returns (uint256) {
-        uint256 usedAmount = Math.mulDiv(
-            _amount,
-            _usedPoints,
-            _points,
+        uint256 _usedQuoteTokenAmount = Math.mulDiv(
+            _quoteTokenAmount,
+            _usedProjectPoints,
+            _projectPoints,
             Math.Rounding.Up
         );
 
         if (_offerType == OfferType.Bid) {
-            return _amount - usedAmount;
+            return _quoteTokenAmount - _usedQuoteTokenAmount;
         }
 
         return
             Math.mulDiv(
-                _amount - usedAmount,
+                _quoteTokenAmount - _usedQuoteTokenAmount,
                 _collateralRate,
                 Constants.COLLATERAL_RATE_DECIMAL_SCALER,
                 Math.Rounding.Down

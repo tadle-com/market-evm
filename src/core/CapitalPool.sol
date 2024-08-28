@@ -10,17 +10,21 @@ import {Errors} from "../utils/Errors.sol";
 
 /**
  * @title CapitalPool
- * @notice Implement the capital pool
+ * @notice Contracts for the deposit of funds
  */
 contract CapitalPool is CapitalPoolStorage, Rescuable, ICapitalPool {
     constructor() Rescuable() {}
 
     /**
      * @dev Approve token for token manager
-     * @notice only can be called by token manager
-     * @param tokenAddr address of token
+     * @notice Only can be called by token manager
+     * @param tokenAddr Address of token
      */
-    function approve(address tokenAddr) external {
+    function approve(
+        address tokenAddr,
+        uint256 _allowance,
+        uint256 _amount
+    ) external {
         address tokenManager = tadleFactory.relatedContracts(
             RelatedContractLibraries.TOKEN_MANAGER
         );
@@ -29,8 +33,20 @@ contract CapitalPool is CapitalPoolStorage, Rescuable, ICapitalPool {
             revert Errors.Unauthorized();
         }
 
-        (bool success, ) = tokenAddr.call(
-            abi.encodeCall(IERC20.approve, (tokenManager, type(uint256).max))
+        if (_allowance != 0x0) {
+            _approve(tokenAddr, tokenManager, 0x0);
+        }
+
+        _approve(tokenAddr, tokenManager, _amount);
+    }
+
+    function _approve(
+        address _tokenAddr,
+        address _spender,
+        uint256 _amount
+    ) internal {
+        (bool success, ) = _tokenAddr.call(
+            abi.encodeCall(IERC20.approve, (_spender, _amount))
         );
 
         if (!success) {

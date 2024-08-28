@@ -17,9 +17,6 @@ library Errors {
      */
     error NotEnoughMsgValue(uint256 _msgValue, uint256 _amount);
 
-    /// @dev Error when transfer failed
-    error TransferFailed();
-
     /// @dev Error when zero address
     error ZeroAddress();
 
@@ -33,5 +30,10 @@ library Errors {
     error InvalidManager(address _manager);
 
     /// @dev Error when mismatched market place status
-    error MismatchedMarketPlaceStatus();
+    error MismatchedMarketplaceStatus();
+
+    error RollinTooSoon(uint256);
+
+    /// @dev Error when invalid receipt address
+    error InvalidReceiptAddress(address);
 }
