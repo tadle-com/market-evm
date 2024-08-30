@@ -182,15 +182,15 @@ contract PreMarkets is
          * @dev Points must be greater than 0
          * @dev Total projectPoints must be greater than `usedProjectPoints + _projectPoints`
          */
+
+        _checkOfferInVirgin(_offer);
+
         if (_projectPoints == 0x0) {
             revert Errors.AmountIsZero();
         }
 
         OfferInfo storage offerInfo = offerInfoMap[_offer];
         MakerInfo storage makerInfo = makerInfoMap[offerInfo.maker];
-        if (offerInfo.offerStatus != OfferStatus.Virgin) {
-            revert InvalidOfferStatus();
-        }
 
         if (
             offerInfo.projectPoints <
@@ -331,6 +331,8 @@ contract PreMarkets is
         OfferInfo storage offerInfo = offerInfoMap[holdingInfo.preOffer];
         MakerInfo storage makerInfo = makerInfoMap[offerInfo.maker];
 
+        _checkOfferInVirgin(holdingInfo.preOffer);
+
         /// @dev The market must be online
         ISystemConfig systemConfig = tadleFactory.getSystemConfig();
         MarketplaceInfo memory marketPlaceInfo = systemConfig
@@ -357,7 +359,8 @@ contract PreMarkets is
             if (_collateralRate != originOfferInfo.collateralRate) {
                 revert InvalidCollateralRate(_collateralRate);
             }
-            originOfferInfo.abortOfferStatus = AbortOfferStatus.AllocationPropagated;
+            originOfferInfo.abortOfferStatus = AbortOfferStatus
+                .AllocationPropagated;
         }
 
         /// @dev Transfer collateral when offer settle type is `protected`
@@ -581,7 +584,7 @@ contract PreMarkets is
         }
 
         if (offerInfo.abortOfferStatus != AbortOfferStatus.Initialized) {
-            revert InvalidAbortOfferStatus(
+            revert Errors.InvalidAbortOfferStatus(
                 AbortOfferStatus.Initialized,
                 offerInfo.abortOfferStatus
             );
@@ -700,7 +703,7 @@ contract PreMarkets is
         }
 
         if (preOfferInfo.abortOfferStatus != AbortOfferStatus.Aborted) {
-            revert InvalidAbortOfferStatus(
+            revert Errors.InvalidAbortOfferStatus(
                 AbortOfferStatus.Aborted,
                 preOfferInfo.abortOfferStatus
             );
@@ -1015,6 +1018,25 @@ contract PreMarkets is
                 makerInfo.collateralTokenAddr,
                 _remainingPlatformFee
             );
+        }
+    }
+
+    function _checkOfferInVirgin(address _offer) internal view {
+        OfferInfo storage offerInfo = offerInfoMap[_offer];
+
+        if (offerInfo.offerStatus != OfferStatus.Virgin) {
+            revert InvalidOfferStatus();
+        }
+
+        MakerInfo storage makerInfo = makerInfoMap[offerInfo.maker];
+        if (makerInfo.offerSettleType == OfferSettleType.Turbo) {
+            OfferInfo storage originOfferInfo = offerInfoMap[
+                makerInfo.originOffer
+            ];
+
+            if (originOfferInfo.offerStatus != OfferStatus.Virgin) {
+                revert InvalidOfferStatus();
+            }
         }
     }
 }

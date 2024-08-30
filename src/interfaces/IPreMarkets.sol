@@ -183,13 +183,7 @@ interface IPreMarkets {
 
     /// @dev Error when invalid offer status
     error InvalidOfferStatus();
-
-    /// @dev Error when invalid offer status
-    error InvalidAbortOfferStatus(
-        AbortOfferStatus _targetStatus,
-        AbortOfferStatus _currentStatus
-    );
-
+    
     /// @dev Error when invalid holding status
     error InvalidHoldingStatus(
         HoldingStatus _targetStatus,

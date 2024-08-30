@@ -4,7 +4,8 @@ pragma solidity 0.8.19;
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {DeliveryPlaceStorage} from "../storage/DeliveryPlaceStorage.sol";
-import {OfferStatus, HoldingStatus, OfferType, HoldingType, OfferSettleType} from "../storage/OfferStatus.sol";
+import {HoldingStatus, OfferType, HoldingType, OfferSettleType} from "../storage/OfferStatus.sol";
+import {OfferStatus, AbortOfferStatus} from "../storage/OfferStatus.sol";
 import {ITadleFactory} from "../factory/ITadleFactory.sol";
 import {IDeliveryPlace} from "../interfaces/IDeliveryPlace.sol";
 import {ISystemConfig, MarketplaceInfo, MarketplaceStatus} from "../interfaces/ISystemConfig.sol";
@@ -152,6 +153,13 @@ contract DeliveryPlace is
 
         if (offerInfo.offerStatus != OfferStatus.Settled) {
             revert InvalidOfferStatus();
+        }
+
+        if (offerInfo.abortOfferStatus == AbortOfferStatus.Aborted) {
+            revert Errors.InvalidAbortOfferStatus(
+                AbortOfferStatus.Aborted,
+                offerInfo.abortOfferStatus
+            );
         }
 
         if (holdingInfo.holdingStatus != HoldingStatus.Initialized) {

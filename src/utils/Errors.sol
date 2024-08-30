@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.19;
 
+import {AbortOfferStatus} from "../storage/OfferStatus.sol";
+
 /**
  * @title Errors
  * @dev Library of errors
@@ -36,4 +38,9 @@ library Errors {
 
     /// @dev Error when invalid receipt address
     error InvalidReceiptAddress(address);
+
+    error InvalidAbortOfferStatus(
+        AbortOfferStatus _expected,
+        AbortOfferStatus _actual
+    );
 }
