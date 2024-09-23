@@ -30,7 +30,7 @@ library RelatedContractLibraries {
     }
 
     /// @dev Get interface of per markets
-    function getPerMarkets(
+    function getPreMarkets(
         ITadleFactory _tadleFactory
     ) internal view returns (IPreMarkets) {
         return IPreMarkets(_tadleFactory.relatedContracts(PRE_MARKETS));

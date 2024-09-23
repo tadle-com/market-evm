@@ -1,20 +1,5 @@
 # Tadle Protocol
 
-[//]: # 'contest-details-open'
-
-### Prize Pool
-
--   Total Pool -
--   H/M -
--   Low -
--   Community Judging -
-
--   Starts:
--   Ends:
-
--   nSLOC:
--   Complexity Score:
-
 ## About the Project
 
 ```

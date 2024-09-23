@@ -59,7 +59,9 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
             revert InvalidRate(_referrerRate, _refereeRate, totalRate);
         }
 
-        bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
+        bytes32 referralCodeId = keccak256(
+            abi.encode(msg.sender, _referralCode)
+        );
         if (referralCodeMap[referralCodeId].referrer != address(0x0)) {
             revert ReferralCodeExist(_referralCode);
         }
@@ -86,7 +88,9 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
     function removeReferralCode(
         string calldata _referralCode
     ) external whenNotPaused {
-        bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
+        bytes32 referralCodeId = keccak256(
+            abi.encode(msg.sender, _referralCode)
+        );
 
         if (referralCodeMap[referralCodeId].referrer != msg.sender) {
             revert Errors.Unauthorized();
@@ -99,14 +103,9 @@ contract SystemConfig is SystemConfigStorage, Rescuable, ISystemConfig {
 
     /**
      * @notice Update referrer setting
-     * @param _referralCode Referral code
      * @notice `_referrer` != `msg.sender`
      */
-    function updateReferrerInfo(
-        string calldata _referralCode
-    ) external whenNotPaused {
-        bytes32 referralCodeId = keccak256(abi.encode(_referralCode));
-
+    function updateReferrerInfo(bytes32 referralCodeId) external whenNotPaused {
         ReferralInfo storage referralInfo = referralCodeMap[referralCodeId];
 
         if (msg.sender == referralInfo.referrer) {

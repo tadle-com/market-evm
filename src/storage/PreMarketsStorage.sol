@@ -8,9 +8,9 @@ import {OfferInfo, HoldingInfo, MakerInfo} from "../interfaces/IPreMarkets.sol";
 
 /**
  * @title PreMarketsStorage
- * @notice This contrct serves as the storage of PerMarkets
+ * @notice This contrct serves as the storage of PreMarkets
  * @notice The top 50 storage slots are used for upgradeable storage.
- * @notice The 50th to 150th storage slots are used for PerMarkets.
+ * @notice The 50th to 150th storage slots are used for PreMarkets.
  */
 contract PreMarketsStorage is UpgradeableStorage {
     /// @dev the last offer id. increment by 1

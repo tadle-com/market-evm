@@ -38,6 +38,7 @@ contract PreMarketsTest is Test {
     address user1 = vm.addr(2);
     address user2 = vm.addr(3);
     address user3 = vm.addr(4);
+    address user4 = vm.addr(5);
 
     address manager = vm.addr(5);
     address guardian = vm.addr(6);
@@ -122,7 +123,7 @@ contract PreMarketsTest is Test {
         deal(address(mockUSDCToken), user1, 100000000 * 10 ** 18);
         deal(address(mockUSDCToken), user2, 100000000 * 10 ** 18);
         deal(address(mockUSDCToken), user3, 100000000 * 10 ** 18);
-
+        deal(address(mockUSDCToken), user4, 100000000 * 10 ** 18);
         deal(address(mockPointToken), user2, 100000000 * 10 ** 18);
 
         marketPlace = GenerateAddress.generateMarketplaceAddress("Backpack");
@@ -139,6 +140,55 @@ contract PreMarketsTest is Test {
         mockUSDCToken.approve(address(tokenManager), type(uint256).max);
         mockPointToken.approve(address(tokenManager), type(uint256).max);
         vm.stopPrank();
+    }
+
+    function test_ask_offer_turbo_eth_dos() public {
+        vm.startPrank(user);
+
+        preMarkets.createOffer{value: 0.012 * 1e18}(
+            CreateOfferParams(
+                marketPlace,
+                address(weth9),
+                1000,
+                0.01 * 1e18,
+                12000,
+                300,
+                OfferType.Ask,
+                OfferSettleType.Turbo
+            )
+        );
+
+        /// @notice Toggle allow the transaction to either revert or succeed.
+        bool makeAnotherOffer = true;
+
+        /// @notice When `makeAnotherOffer` is true, we will have the
+        /// @notice same user create another offer.
+        if (makeAnotherOffer) {
+            preMarkets.createOffer{value: 0.012 * 1e18}(
+                CreateOfferParams(
+                    marketPlace,
+                    address(weth9),
+                    1000,
+                    0.01 * 1e18,
+                    12000,
+                    300,
+                    OfferType.Ask,
+                    OfferSettleType.Turbo
+                )
+            );
+        }
+
+        address offerAddr = GenerateAddress.generateOfferAddress(1);
+        preMarkets.createHolding{value: 0.005175 * 1e18}(offerAddr, 500);
+
+        address stock1Addr = GenerateAddress.generateHoldingAddress(3);
+
+        /// @audit When `makeAnotherOffer` is true, it is impossible for
+        /// @audit the owner to create a listing. In this instance, the
+        /// @audit caller inadvertently returns their original offer
+        /// @audit to an uninitialized status, locking their capital.
+        // if (makeAnotherOffer) vm.expectRevert("Mismatched Marketplace status");
+        preMarkets.listHolding(stock1Addr, 0.006 * 1e18, 12000);
     }
 
     function test_ask_offer_turbo_usdc() public {
@@ -342,7 +392,10 @@ contract PreMarketsTest is Test {
 
         address offer1Addr = GenerateAddress.generateOfferAddress(2);
         preMarkets.closeOffer(holding1Addr, offer1Addr);
-        preMarkets.relistHolding{value: 0.0072 * 1e18}(holding1Addr, offer1Addr);
+        preMarkets.relistHolding{value: 0.0072 * 1e18}(
+            holding1Addr,
+            offer1Addr
+        );
 
         vm.stopPrank();
 
@@ -671,7 +724,11 @@ contract PreMarketsTest is Test {
         systemConfig.createReferralCode("Egtk1OG2", 300000, 0);
 
         vm.prank(user1);
-        systemConfig.updateReferrerInfo("Egtk1OG2");
+        bytes32 referralCodeId = keccak256(abi.encode(user, "Egtk1OG2"));
+        systemConfig.updateReferrerInfo(referralCodeId);
+
+        vm.prank(user);
+        systemConfig.createReferralCode("Egtk1OG3", 300000, 0);
     }
 
     function test_withdraw_platform_fee() public {

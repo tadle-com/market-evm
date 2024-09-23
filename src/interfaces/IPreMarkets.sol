@@ -6,7 +6,7 @@ import {HoldingStatus, HoldingType} from "../storage/OfferStatus.sol";
 
 /**
  * @title IPreMarkets
- * @dev Interface of PerMarkets
+ * @dev Interface of PreMarkets
  */
 interface IPreMarkets {
     /**

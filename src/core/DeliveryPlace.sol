@@ -84,8 +84,8 @@ contract DeliveryPlace is
             refundCollateralAmount
         );
 
-        IPreMarkets perMarkets = tadleFactory.getPerMarkets();
-        perMarkets.updateOfferStatus(_offer, OfferStatus.Settled);
+        IPreMarkets preMarkets = tadleFactory.getPreMarkets();
+        preMarkets.updateOfferStatus(_offer, OfferStatus.Settled);
 
         emit CloseBidOffer(
             makerInfo.marketPlace,
@@ -105,9 +105,9 @@ contract DeliveryPlace is
     function closeBidHolding(
         address _holding
     ) external nonReentrant whenNotPaused {
-        IPreMarkets perMarkets = tadleFactory.getPerMarkets();
+        IPreMarkets preMarkets = tadleFactory.getPreMarkets();
         ITokenManager tokenManager = tadleFactory.getTokenManager();
-        HoldingInfo memory holdingInfo = perMarkets.getHoldingInfo(_holding);
+        HoldingInfo memory holdingInfo = preMarkets.getHoldingInfo(_holding);
 
         if (holdingInfo.preOffer == address(0x0)) {
             revert InvalidHolding();
@@ -134,11 +134,11 @@ contract DeliveryPlace is
             offerInfo = preOfferInfo;
             userRemainingProjectPoints = holdingInfo.projectPoints;
         } else {
-            offerInfo = perMarkets.getOfferInfo(makerInfo.originOffer);
+            offerInfo = preMarkets.getOfferInfo(makerInfo.originOffer);
             if (holdingInfo.offer == address(0x0)) {
                 userRemainingProjectPoints = holdingInfo.projectPoints;
             } else {
-                OfferInfo memory listOfferInfo = perMarkets.getOfferInfo(
+                OfferInfo memory listOfferInfo = preMarkets.getOfferInfo(
                     holdingInfo.offer
                 );
                 userRemainingProjectPoints =
@@ -195,7 +195,7 @@ contract DeliveryPlace is
             pointTokenAmount
         );
 
-        perMarkets.updateHoldingStatus(_holding, HoldingStatus.Finished);
+        preMarkets.updateHoldingStatus(_holding, HoldingStatus.Finished);
 
         emit CloseBidHolding(
             makerInfo.marketPlace,
@@ -313,14 +313,14 @@ contract DeliveryPlace is
         if (makerRefundAmount > 0) {
             tokenManager.addTokenBalance(
                 TokenBalanceType.MakerRefund,
-                msg.sender,
+                offerInfo.authority,
                 makerInfo.collateralTokenAddr,
                 makerRefundAmount
             );
         }
 
-        IPreMarkets perMarkets = tadleFactory.getPerMarkets();
-        perMarkets.settledAskOffer(
+        IPreMarkets preMarkets = tadleFactory.getPreMarkets();
+        preMarkets.settledAskOffer(
             _offer,
             _settledCollateralAmount,
             _settledProjectPoints,
@@ -350,8 +350,8 @@ contract DeliveryPlace is
         address _holding,
         uint256 _settledProjectPoints
     ) external nonReentrant whenNotPaused {
-        IPreMarkets perMarkets = tadleFactory.getPerMarkets();
-        HoldingInfo memory holdingInfo = perMarkets.getHoldingInfo(_holding);
+        IPreMarkets preMarkets = tadleFactory.getPreMarkets();
+        HoldingInfo memory holdingInfo = preMarkets.getHoldingInfo(_holding);
 
         (
             OfferInfo memory offerInfo,
@@ -430,7 +430,7 @@ contract DeliveryPlace is
             );
         }
 
-        perMarkets.settleAskHolding(
+        preMarkets.settleAskHolding(
             holdingInfo.preOffer,
             _holding,
             _settledProjectPoints,
@@ -461,11 +461,11 @@ contract DeliveryPlace is
             MarketplaceStatus status
         )
     {
-        IPreMarkets perMarkets = tadleFactory.getPerMarkets();
+        IPreMarkets preMarkets = tadleFactory.getPreMarkets();
         ISystemConfig systemConfig = tadleFactory.getSystemConfig();
 
-        offerInfo = perMarkets.getOfferInfo(_offer);
-        makerInfo = perMarkets.getMakerInfo(offerInfo.maker);
+        offerInfo = preMarkets.getOfferInfo(_offer);
+        makerInfo = preMarkets.getMakerInfo(offerInfo.maker);
         marketPlaceInfo = systemConfig.getMarketplaceInfo(
             makerInfo.marketPlace
         );

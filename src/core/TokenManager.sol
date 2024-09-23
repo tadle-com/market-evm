@@ -75,7 +75,7 @@ contract TokenManager is
     {
         /// @notice amount must be greater than 0
         if (_amount == 0) {
-            revert Errors.AmountIsZero();
+            revert Errors.NotEnoughMsgValue(msg.value, 0);
         }
 
         address capitalPoolAddr = tadleFactory.relatedContracts(
